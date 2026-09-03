@@ -1,0 +1,4 @@
+# Node / Astro build outputs
+node_modules/
+dist/
+.astro/
