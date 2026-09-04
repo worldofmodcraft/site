@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="World of Modcraft emblem">
+  <!--
+    Original mark, hand-authored as inline SVG for this task (ADR-0004: own assets only -- no
+    Blizzard iconography, no borrowed emblem). Reads as a small flame cradled by two curved
+    "branches" -- echoes the campfire/lantern motif used throughout the fixture content and
+    docs/design.md, at a scale that survives a 16px browser tab.
+  -->
+  <rect width="64" height="64" rx="14" fill="#0f0d0a"/>
+  <path d="M14 44 C 14 30, 22 26, 22 16 C 30 24, 26 32, 30 38 C 34 30, 30 24, 34 16 C 42 26, 34 34, 40 44"
+        fill="none" stroke="#5c7c5e" stroke-width="3.2" stroke-linecap="round"/>
+  <path d="M32 46 C 26 40, 27 33, 32 27 C 37 33, 38 40, 32 46 Z" fill="#e2a24d"/>
+  <path d="M32 41 C 29.5 38, 30 34.5, 32 31.5 C 34 34.5, 34.5 38, 32 41 Z" fill="#f3c377"/>
+</svg>

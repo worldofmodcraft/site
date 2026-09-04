@@ -1,0 +1,20 @@
+{
+  "id": "fixture:campfire-tales",
+  "name": "Campfire Tales",
+  "version": "1.2.0",
+  "api_version": "1.0",
+  "license": "MIT",
+  "source": "https://github.com/fixture-author-one/campfire-tales",
+  "type": "mod",
+  "description": "Storytelling NPCs that gather at campfires (or lantern posts) and tell a rotating cast of original short tales.",
+  "tags": [
+    "ambience",
+    "npc",
+    "roleplay"
+  ],
+  "screenshots": [
+    "assets/screenshots/campfire.png",
+    "assets/screenshots/tales.png"
+  ],
+  "ai_assisted": false
+}

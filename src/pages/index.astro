@@ -1,0 +1,87 @@
+---
+import BaseLayout from "../layouts/BaseLayout.astro";
+import OrnamentDivider from "../components/OrnamentDivider.astro";
+import fs from "node:fs";
+import { CONTENT_DATA_FILE } from "../lib/config.mjs";
+
+const mods = JSON.parse(fs.readFileSync(CONTENT_DATA_FILE, "utf8"));
+const recentMods = [...mods].sort((a, b) => new Date(b.updatedAt) - new Date(a.updatedAt)).slice(0, 3);
+---
+<BaseLayout
+  title="Start"
+  description="World of Modcraft: an in-development modding platform for a classic-era WoW server, built entirely from original code and assets."
+>
+  <section class="hero">
+    <div class="container">
+      <p class="eyebrow">In active development</p>
+      <h1>A modding platform, built out in the open.</h1>
+      <p class="lede">
+        World of Modcraft is a from-scratch modding stack for a classic-era WoW server:
+        a forked client and server, a shared runtime kernel, and this portal, which turns
+        every published mod's own repository into a page here — automatically, and only from
+        what its author actually shipped.
+      </p>
+      <div class="hero-actions">
+        <a class="btn" href="/browse">Browse mods</a>
+        <a class="btn btn-quiet" href="https://github.com/worldofmodcraft/platform" rel="noopener">Read the decision log</a>
+      </div>
+    </div>
+  </section>
+
+  <OrnamentDivider />
+
+  <section class="container status" id="status">
+    <h2>Honestly, where this stands</h2>
+    <p>
+      This platform is <strong>in development</strong>. There is no kernel yet, no launcher, and
+      no live server. What exists today is the publishing pipeline you're looking at: a registry
+      that records mods, an archive that keeps their source safe even if the author's own
+      repository ever disappears, and this site, generated fresh from that data. Nothing here is
+      hand-edited to make a page say something its source data doesn't.
+    </p>
+    <p>
+      Every design decision behind this project — what it will and won't do, and why — is written
+      down before it's built. Read the{" "}
+      <a href="https://github.com/worldofmodcraft/platform" rel="noopener">full decision log</a>{" "}
+      if you want the reasoning, not just the result.
+    </p>
+  </section>
+
+  <OrnamentDivider />
+
+  <section class="container">
+    <div class="section-head">
+      <h2>Recently updated</h2>
+      <a href="/browse">See all mods →</a>
+    </div>
+    <ul class="mod-grid">
+      {recentMods.map((mod) => (
+        <li class="card mod-card">
+          <a href={`/mods/${mod.ns}/${mod.name}`}>
+            <h3>{mod.displayName}</h3>
+            <p class="dim">{mod.description}</p>
+            <p class="tags">
+              {mod.tags.map((tag) => <span class="tag">{tag}</span>)}
+            </p>
+          </a>
+        </li>
+      ))}
+    </ul>
+  </section>
+</BaseLayout>
+
+<style>
+  .hero { padding-block: var(--space-7) var(--space-5); }
+  .hero h1 { max-width: 32ch; }
+  .lede { max-width: 58ch; font-size: 1.15rem; color: var(--color-text-dim); }
+  .hero-actions { display: flex; gap: var(--space-3); flex-wrap: wrap; margin-top: var(--space-5); }
+  .status h2 { max-width: 30ch; }
+  .status p { max-width: 62ch; color: var(--color-text-dim); }
+  .section-head { display: flex; align-items: baseline; justify-content: space-between; gap: var(--space-3); flex-wrap: wrap; margin-bottom: var(--space-4); }
+  .section-head a { font-family: var(--font-display); font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.05em; text-decoration: none; }
+  .mod-grid { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr)); gap: var(--space-4); }
+  .mod-card a { text-decoration: none; color: inherit; display: block; }
+  .mod-card h3 { margin-bottom: var(--space-2); }
+  .mod-card .dim { color: var(--color-text-dim); font-size: 0.95rem; }
+  .mod-card .tags { display: flex; flex-wrap: wrap; gap: var(--space-2); margin-top: var(--space-3); }
+</style>

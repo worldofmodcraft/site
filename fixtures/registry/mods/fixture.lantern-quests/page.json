@@ -1,0 +1,18 @@
+{
+  "description": "A short phosphorescent quest chain through the old mine tunnels: follow a trail of glowing lantern-moths to an abandoned prospector's camp, and decide what to do with what he left behind.",
+  "screenshots": [
+    "assets/screenshots/mine-tunnel.png",
+    "assets/screenshots/lantern.png"
+  ],
+  "tags": [
+    "quest",
+    "exploration"
+  ],
+  "links": [
+    {
+      "label": "Source",
+      "url": "https://github.com/fixture-author-two/lantern-quests"
+    }
+  ],
+  "deprecated": false
+}

@@ -1,0 +1,21 @@
+{
+  "description": "Storytelling NPCs that gather at campfires (or lantern posts) and tell a rotating cast of original short tales. A cosy, low-key ambience mod -- no combat, no loot, just company.",
+  "screenshots": [
+    "assets/screenshots/campfire.png",
+    "assets/screenshots/tales.png",
+    "assets/screenshots/lantern-glow.png"
+  ],
+  "tags": [
+    "ambience",
+    "npc",
+    "roleplay",
+    "storytelling"
+  ],
+  "links": [
+    {
+      "label": "Source",
+      "url": "https://github.com/fixture-author-one/campfire-tales"
+    }
+  ],
+  "deprecated": false
+}

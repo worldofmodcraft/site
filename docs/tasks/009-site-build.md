@@ -123,8 +123,268 @@ Beyond MANAGER.md §3.7:
   not take and a score you did not measure are the two easiest lies in this task.
 
 ## Questions  (agent-maintained; see MANAGER.md §8b)
-- (none yet)
+- **Missing/malformed `manifest.json` inside a mod's current-version archive** -- not covered by
+  E11 (`contracts/archive-layout.md` only names `README.md` and screenshot paths), but it is the
+  only source this build has for licence/type/display-name in this phase (no kernel to parse
+  `mod.lua`; neither `entry.schema.json` nor `page.schema.json` carries a licence field). Options,
+  for whoever reviews `scripts/prepare-content.mjs`'s current behaviour:
+  - **A. (implemented, ★ lean)** Degrade only that mod's manifest-derived fields (licence/type
+    shown as "unavailable", display name falls back to a title-cased slug of its registry name),
+    log a loud warning naming the `source_archive`, and still build every other mod's page and
+    the mod's own README/screenshots if those parts of the archive are fine. Consistent with E11's
+    overall "a missing piece degrades, it doesn't fail the build" philosophy, extended to a field
+    E11 doesn't name.
+  - B. Skip generating that one mod's page entirely (loud error, `npm run build` still exits 0
+    for the rest), on the reasoning that a mod page with no visible licence is worse than no page.
+  - C. Treat it as fully build-fatal (`npm run build` exits non-zero) until fixed, on the
+    reasoning that licence is legally central enough that "the site half-built" should block a
+    deploy rather than silently publish an unlicensed-looking mod page.
+  No ADR or contract adjudicates this; A is implemented today (`scripts/prepare-content.mjs`,
+  `docs/build.md`'s reconciliation table) because it best matches E11's own stated philosophy, but
+  it is a one-paragraph change to switch to B or C if review disagrees.
 
 ---
 # Task 009 log  (append-only, updated continuously by the executing agent)
 - 2026-09-03 spec approved; worktree created from site `main` (task 022's seed commit).
+- 2026-09-04/05 (single continuous session) -- full implementation. Summary below; see
+  `docs/build.md` and `docs/design.md` for the permanent documentation this log points at.
+
+## Environment verification (done before writing anything)
+- Node `v24.20.0` / npm `11.19.0` at `/home/ludwig/.local/node/bin/`, confirmed directly.
+- No frontend-design skill present in this environment's available-skills listing (checked at
+  session start) -- design direction in `docs/design.md` was authored directly.
+- **No headless browser was pre-installed, and there is no root/sudo access** (`sudo -n true` ->
+  "interactive authentication is required"; `apt-get install chromium` needs root). To get a
+  *real* Lighthouse score and a *real* interactive Pagefind/filter demonstration rather than
+  unverifiable claims, this session: downloaded Chrome for Testing via `npx @puppeteer/browsers
+  install chrome@stable` (no root needed) -> launch failed with `error while loading shared
+  libraries: libnspr4.so: cannot open shared object file` (`ldd` then showed 5 missing libs:
+  libnspr4, libnss3, libnssutil3, libsmime3, libasound.so.2) -> fetched those exact `.deb` files
+  with `apt-get download` (fetch-only, no root needed) into a scratch dir, extracted them with
+  `dpkg-deb -x` (no install, no root), and pointed `LD_LIBRARY_PATH` at the extracted
+  `usr/lib/x86_64-linux-gnu`. Chrome then launched headless successfully
+  (`--headless=new --no-sandbox --disable-gpu --dump-dom https://example.com` produced real HTML).
+  This recipe lives only in this log and in `docs/build.md`'s performance section (not in any
+  script this repo ships) -- it was a one-time verification step for this task's own report, not
+  part of the site's build, which needs no browser at all.
+
+## Criterion 1 -- `npm run build` produces a complete `dist/` from fixtures alone, no network
+Command and real output (clean tree: `rm -rf dist .cache public/_generated` first):
+```
+$ npm run build
+...
+23:19:40 [build] 5 page(s) built in 467ms
+23:19:40 [build] Complete!
+...
+> pagefind --site dist
+...
+  Indexed 5 pages
+...
+> node scripts/verify-dist.mjs
+OK    dist/.nojekyll present and empty
+OK    dist/CNAME present with exact required content
+OK    dist/index.html present
+OK    dist/mods/fixture/campfire-tales/index.html present
+OK    dist/mods/fixture/lantern-quests/index.html present
+OK    dist/pagefind/ present and non-empty
+OK    no local filesystem paths found in served HTML
+
+dist/ satisfies every check this repository runs against contracts/site-output.md (E13).
+$ echo EXIT_CODE=$?
+EXIT_CODE=0
+```
+Generated routes (`find dist -name index.html`): `dist/index.html`, `dist/about/index.html`,
+`dist/browse/index.html`, `dist/mods/fixture/campfire-tales/index.html`,
+`dist/mods/fixture/lantern-quests/index.html`.
+**No network:** `grep -rn "fetch(\|http\.request\|https\.request\|XMLHttpRequest" src/ scripts/`
+returns nothing -- no network-capable API is referenced anywhere in the build path (`OS`-level
+network-namespace isolation (`unshare -n`) was attempted for a stronger proof and is unavailable
+without privilege in this environment -- `unshare: unshare failed: Operation not permitted` --
+so this is static-analysis evidence, stated as such, not a sandboxed-network proof).
+
+## Criterion 2 -- URL scheme `/mods/<ns>/<name>` (E14)
+`src/pages/mods/[ns]/[name].astro`'s own file path is the contract. Generated paths (above):
+`/mods/fixture/campfire-tales/`, `/mods/fixture/lantern-quests/` -- one per fixture entry, both.
+
+## Criterion 3 -- mod page content, sourced from archive, provenance shown in the build log
+`npm run prepare-content`'s real output (unabridged for one mod):
+```
+-- fixture:campfire-tales --
+Current (highest published) version: 1.2.0
+Archive path for current version, resolved from source_archive (never fetched over
+the network -- see src/lib/archive.mjs): /home/.../fixtures/archives/fixture/campfire-tales/1.2.0.tar.gz
+Extracted to: /home/.../. cache/archives/fixture/campfire-tales/1.2.0
+manifest.json read from archive: license=MIT type=mod
+README rendered from archive file: /home/.../1.2.0/README.md (1047 bytes source)
+Screenshot copied from archive: /home/.../1.2.0/assets/screenshots/campfire.png -> /_generated/...
+Screenshot copied from archive: /home/.../1.2.0/assets/screenshots/tales.png -> /_generated/...
+Screenshot copied from archive: /home/.../1.2.0/assets/screenshots/lantern-glow.png -> /_generated/...
+```
+Removed-version reason rendering, confirmed in the built HTML:
+`grep -o "1\.1\.0 removed:.\{0,140\}" dist/mods/fixture/campfire-tales/index.html` ->
+`1.1.0 removed:</strong> A contributed screenshot was a re-touched Blizzard asset, reported after
+publish; artefacts pulled per ADR-0041. The archived sour...` -- rendered, not hidden, exactly as
+the criterion requires. Screenshots (`docs/screenshots/mod-page-desktop.png`,
+`mod-page-mobile.png`) show description, tags, gallery, README, version table and licence
+together on one page.
+
+## Criterion 4 -- install button: `modcraft://` URI + "coming soon" + direct download
+`grep -o "modcraft://install/[^<\"]*" dist/mods/fixture/campfire-tales/index.html` ->
+`modcraft://install/fixture/campfire-tales@1.2.0`. `grep -o "launcher coming soon" ...` matches.
+`grep -o "archive.worldofmodcraft.com/fixture/campfire-tales/[0-9.]*\.tar\.gz" ...` matches all
+three versions' archived-download links. Visible in `docs/screenshots/mod-page-desktop.png`'s
+"Install" card.
+
+## Criterion 5 -- browse page: list, filter by tag/type, sort by recently updated, filter demo
+Sort: `src/pages/browse.astro` sorts fixtures by `updatedAt` descending server-side. Filter demo,
+via a real headless-Chrome click (not a hand-simulated DOM mutation):
+```
+FILTER DEMO: before = "2 of 2 mods shown" after clicking tag=quest = "1 of 2 mods shown"
+```
+Screenshot: `docs/screenshots/browse-filtered-desktop.png`.
+
+## Criterion 6 -- client-side search via Pagefind, finds a mod by a word unique to its description
+Fixture `fixture:lantern-quests`'s `page.json` description contains "phosphorescent", chosen
+because it appears in no other fixture. Real query via the actual Pagefind Default UI, driven by
+`puppeteer-core` against the locally-headless Chrome described above (typed into the real
+`<input>`, waited for real results, read the real DOM -- not a canned response):
+```
+QUERY: phosphorescent
+[
+  { "title": "Lantern Quests", "link": "/mods/fixture/lantern-quests/",
+    "excerpt": "... A short phosphorescent quest chain through the old" },
+  { "title": "Browse", ... }, { "title": "A modding platform, built out in the open.", ... }
+]
+```
+Screenshot: `docs/screenshots/browse-search-desktop.png` (also shows the search UI correctly
+re-themed dark to match the site -- see the "Pagefind theming bug" note below).
+
+## Criterion 7 -- start page + About/Licensing page
+`src/pages/index.astro`: states what the platform is, an explicit "Honestly, where this stands"
+section naming what does NOT exist yet, and a decision-log link. `src/pages/about.astro`: a
+"Licensing, in plain language" section walking through ADR-0049's three-way split (AGPL platform
+/ MIT-with-linking-clause SDK / any-OSI-licence mods) for a non-lawyer reader, plus its own
+rationale paragraph. Screenshots: `docs/screenshots/start-{desktop,mobile}.png`,
+`about-{desktop,mobile}.png`.
+
+## Criterion 8 -- design: dark, atmospheric, original, intentional at both viewports
+Direction, typography, and a full "how each decorative asset was produced" log:
+`docs/design.md`. Nothing Blizzard-derived: every image asset is either hand-authored inline SVG
+or a from-scratch PNG encoder's output (`src/lib/png.mjs`, verified with `file` to be genuine
+640x360 8-bit RGB PNGs); no font, icon or name is borrowed from Blizzard's identity. Fonts are
+Cinzel + EB Garamond, both SIL OFL-1.1, self-hosted via `@fontsource/*` (no CDN). Screenshots at
+both viewports, all committed under `docs/screenshots/`: `start-desktop.png`/`start-mobile.png`,
+`browse-desktop.png`/`browse-mobile.png`, `mod-page-desktop.png`/`mod-page-mobile.png`,
+`about-desktop.png`/`about-mobile.png`, plus `browse-filtered-desktop.png` and
+`browse-search-desktop.png` for criteria 5/6.
+**Bug found and fixed during this task, worth recording:** the first draft had a real, visible
+whitespace bug -- Astro's compiler trims whitespace-only text nodes adjacent to a `<a>` tag when
+authored on its own line, producing "Read thefull decision logif you want" with no spaces.
+Caught by reading the actual screenshot, not by assuming the markup was fine; fixed with explicit
+`{" "}` expressions in `index.astro`, `about.astro`, `SiteFooter.astro`. Re-screenshotted after the
+fix. Separately, Pagefind's Default UI theming had a real bug too: `pagefind-ui.js` does NOT
+auto-inject `pagefind-ui.css` in v1.5.2 (an assumption this task made and then disproved by
+checking `document.styleSheets` in the real browser) -- fixed by adding the `<link>` explicitly in
+`browse.astro`; a second real bug (CSS custom-property overrides on `:root` losing the cascade to
+Pagefind's own later-loaded `:root` stylesheet) was fixed by scoping the overrides to `#search`
+instead (`src/styles/global.css`, comment explains why).
+
+## Criterion 9 -- deployment workflow, `CNAME`, triggers
+`.github/workflows/deploy.yml`: triggers on `push` to `main`, `repository_dispatch` (type
+`registry-updated` -- E12 assumption, `docs/build.md`), and manual `workflow_dispatch`; builds,
+runs the archive-safety self-test first, then deploys via the official
+`actions/upload-pages-artifact` + `actions/deploy-pages` flow. `dist/CNAME` contains
+`worldofmodcraft.com` (verified by `scripts/verify-dist.mjs`, see criterion 1's output).
+**GitHub Pages was not enabled and DNS was not touched** -- confirmed by inspection of this task's
+own actions (no `gh` or DNS commands run), per the spec's explicit "Do not" list.
+
+## Criterion 10 -- performance (Lighthouse if a browser genuinely exists here; it does, see above)
+Real Lighthouse run against `http://localhost:8123/mods/fixture/campfire-tales/` (served by a
+plain Node `http` static server in scratch, default Lighthouse config -- mobile emulation +
+simulated throttling, the harder default, not `--preset=desktop`):
+```
+Performance score: 99
+first-contentful-paint 1.4 s   largest-contentful-paint 1.4 s
+total-blocking-time 0 ms       cumulative-layout-shift 0.058
+speed-index 1.4 s
+```
+Full report committed at `docs/perf/lighthouse-mod-page.json`. Lighthouse's own
+`network-requests` audit: **11 requests, ~181 KB transferred, 100% same-origin** (fonts and
+images self-hosted; no third-party script/stylesheet at all -- listed in full in `docs/build.md`).
+**Caveat recorded in `docs/build.md` and repeated here:** this measured a two-mod fixture site on
+a local static server, not the live site under real conditions at real catalogue size -- **TODO:
+re-run Lighthouse against the live `worldofmodcraft.com` once deployed** and once it carries more
+than two mods.
+
+## Criterion 11 -- docs explain the build
+`docs/build.md`: the two data inputs and the one rule, how to run the build, `REGISTRY_DIR`/
+`ARCHIVE_DIR` config to point at a real registry, what fixture data is and what to delete when
+real mods exist, the full E11/E12/E13/E14 assumption-and-reconciliation table, deployment
+triggers, the performance methodology above, and what "install" does today. `docs/design.md`:
+design rationale and the asset-production log for criterion 8.
+
+## Mid-task course correction: contracts E11 and E13 landed during this run
+The coordinator flagged that `contracts/archive-layout.md` (E11) and `contracts/site-output.md`
+(E13) had landed on `worldofmodcraft/registry`'s `task/025-boundary-contracts` branch (not yet
+merged to `main`) and asked for reconciliation before completion. Read both in full from
+`/home/ludwig/wt/registry-task-025/contracts/`. Reconciliation record (assumption confirmed /
+overridden / still-open) is `docs/build.md`'s "Assumptions bound to task 025" table; the two real
+gaps it found and closed:
+- **`.nojekyll` (E13):** this build shipped none. Astro's default asset directory `_astro/`
+  begins with an underscore, which Jekyll (GitHub Pages' default processor) silently excludes,
+  breaking every deployed page's CSS/JS with no error anywhere. Fixed: `public/.nojekyll` (empty,
+  verified `wc -c` = 0), checked by the new `scripts/verify-dist.mjs`, wired onto the end of
+  `npm run build` itself (not just a one-time manual check) -- see criterion 1's output above.
+- **Archive root + path-escape rule (E11):** this build's first implementation extracted a
+  tarball's entries directly into a destination directory (no wrapping root assumed or checked),
+  and had no defence against a hostile tar entry beyond whatever `node-tar` does by default. E11
+  requires exactly one top-level root, determined by inspection (never guessed), and requires
+  every entry -- not only manifest-declared ones -- to be checked for path traversal (`..`),
+  absolute paths, and symlink escapes, rejecting the WHOLE archive on any violation. Fixed:
+  `src/lib/archive.mjs` now lists every entry (`tar.list`, no extraction) before touching disk,
+  determines the root from the entries, validates every entry including symlink targets, and
+  only then extracts with `strip: 1`. Fixture tarballs were rebuilt
+  (`scripts/make-fixture-archives.mjs`) to actually have the required wrapping shape, which they
+  did not before. **Proven, not just coded:** `scripts/self-test-archive-safety.mjs` crafts three
+  real hostile tarballs with the system `tar` binary (a traversal entry matching E11's own
+  recorded attack example almost exactly, a symlink escaping the root, and a rootless archive)
+  plus one well-formed control archive, and asserts the reader rejects all three hostile ones
+  without writing outside its extraction directory, while still accepting the well-formed one.
+  Real output:
+  ```
+  PASS  Attack 1 (traversal entry not declared by any manifest) is rejected
+  PASS  Attack 2 (symlink entry targeting outside the archive root) is rejected
+  PASS  Archive with no top-level root directory is rejected
+  PASS  A well-formed single-root archive still extracts successfully (no false positive)
+
+  All archive-safety checks passed.
+  ```
+  Wired into `.github/workflows/deploy.yml` as a step before every build.
+- Also reconciled (already correct, now checked mechanically instead of by eye): `CNAME`'s exact
+  content, `index.html`'s presence, one route per mod, Pagefind's output tree -- all now asserted
+  by `scripts/verify-dist.mjs`.
+- E11 does not mention `manifest.json` at all (this build's own invention, unconfirmed either
+  way) -- extended the same degrade-not-fail treatment to it for consistency, and booked the
+  judgement call under Questions above rather than deciding it silently.
+- E12 and E14 have not landed their own contract documents yet -- this build's prior assumptions
+  for both stand unchanged (`docs/build.md`'s table).
+
+## What could not be verified
+- Live-site Lighthouse and live DNS/HTTPS/Pages behaviour (blocked on Ludwig's manual steps,
+  mission SS6 -- not this task's to do).
+- Whether GitHub's actual Pages deploy action behaves exactly as `.github/workflows/deploy.yml`
+  assumes -- it has not been run against a real GitHub Actions runner (this task has no CI access
+  of its own); the workflow follows GitHub's own documented official pattern
+  (`actions/upload-pages-artifact` + `actions/deploy-pages`) rather than a hand-rolled deploy step,
+  which is the boring, well-trodden choice (ADR-0103) specifically to minimise this risk.
+
+## Final verification commands (all re-run clean, immediately before this log entry)
+```
+$ rm -rf dist .cache public/_generated && npm run build   # exit 0, see criterion 1
+$ npm run validate-fixtures                                # 7/7 OK
+$ npm run test:archive-safety                               # 4/4 PASS
+```
+File scope respected throughout: no file outside this repository was written; the only files read
+outside it were the (declared, read-only) platform repo, the registry repo's `contracts/`
+(including the task/025 branch worktree the coordinator pointed at), and this machine's own
+package/library files needed to install a verification-only headless browser.

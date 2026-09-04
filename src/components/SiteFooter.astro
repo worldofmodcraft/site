@@ -1,0 +1,52 @@
+---
+const year = new Date().getFullYear();
+---
+<footer class="site-footer">
+  <div class="container grid">
+    <div>
+      <p class="eyebrow">World of Modcraft</p>
+      <p class="dim">
+        A modding platform for a classic-era WoW server, built entirely from original code and
+        assets. In active development -- see the{" "}
+        <a href="/about#status">status note</a>.
+      </p>
+    </div>
+    <div>
+      <p class="eyebrow">Project</p>
+      <ul class="links">
+        <li><a href="https://github.com/worldofmodcraft/platform" rel="noopener">Decision log</a></li>
+        <li><a href="https://github.com/worldofmodcraft/registry" rel="noopener">Registry</a></li>
+        <li><a href="https://github.com/worldofmodcraft/site" rel="noopener">This site's source</a></li>
+      </ul>
+    </div>
+    <div>
+      <p class="eyebrow">Licensing</p>
+      <ul class="links">
+        <li><a href="/about#licensing">How licensing works here</a></li>
+      </ul>
+    </div>
+  </div>
+  <div class="container">
+    <p class="fine-print">© {year} World of Modcraft. Site generator licensed AGPL-3.0-or-later. Not affiliated with or endorsed by Blizzard Entertainment.</p>
+  </div>
+</footer>
+
+<style>
+  .site-footer {
+    margin-top: var(--space-7);
+    border-top: 1px solid var(--color-border-soft);
+    padding-block: var(--space-6) var(--space-5);
+    color: var(--color-text-dim);
+  }
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
+    gap: var(--space-5);
+    margin-bottom: var(--space-5);
+  }
+  .dim { color: var(--color-text-dim); font-size: 0.95rem; }
+  .links { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: var(--space-2); }
+  .links a { color: var(--color-text-dim); text-decoration: none; font-size: 0.95rem; }
+  .links a:hover { color: var(--color-ember-bright); }
+  .fine-print { font-size: 0.8rem; color: var(--color-text-faint); border-top: 1px solid var(--color-border-soft); padding-top: var(--space-4); }
+</style>

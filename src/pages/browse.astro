@@ -1,0 +1,147 @@
+---
+import BaseLayout from "../layouts/BaseLayout.astro";
+import fs from "node:fs";
+import { CONTENT_DATA_FILE } from "../lib/config.mjs";
+
+const mods = JSON.parse(fs.readFileSync(CONTENT_DATA_FILE, "utf8"));
+const sorted = [...mods].sort((a, b) => new Date(b.updatedAt) - new Date(a.updatedAt));
+
+const allTags = [...new Set(sorted.flatMap((m) => m.tags))].sort();
+const allTypes = [...new Set(sorted.map((m) => m.type).filter(Boolean))].sort();
+---
+<BaseLayout title="Browse" description="Browse every published World of Modcraft mod, filter by tag and type, and search their pages.">
+  <section class="container head">
+    <p class="eyebrow">All mods</p>
+    <h1>Browse</h1>
+    <p class="dim">Sorted by most recently updated. Filter by tag or type, or search below.</p>
+  </section>
+
+  <section class="container search-block" id="search" aria-label="Search mods"></section>
+
+  <section class="container">
+    <div class="filters" role="group" aria-label="Filter mods">
+      <div class="filter-group">
+        <span class="filter-label">Type</span>
+        <button class="chip is-active" data-filter-type="" type="button">All</button>
+        {allTypes.map((t) => (
+          <button class="chip" data-filter-type={t} type="button">{t}</button>
+        ))}
+      </div>
+      <div class="filter-group">
+        <span class="filter-label">Tag</span>
+        <button class="chip is-active" data-filter-tag="" type="button">All</button>
+        {allTags.map((t) => (
+          <button class="chip" data-filter-tag={t} type="button">{t}</button>
+        ))}
+      </div>
+    </div>
+
+    <p class="result-count" id="result-count" aria-live="polite"></p>
+
+    <ul class="mod-grid" id="mod-list">
+      {sorted.map((mod) => (
+        <li
+          class="card mod-card"
+          data-type={mod.type}
+          data-tags={mod.tags.join("|")}
+          data-updated={mod.updatedAt}
+        >
+          <a href={`/mods/${mod.ns}/${mod.name}`}>
+            <div class="card-head">
+              <h3>{mod.displayName}</h3>
+              {mod.deprecated && <span class="badge-status removed">Deprecated</span>}
+            </div>
+            <p class="mono id-line">{mod.id}</p>
+            <p class="dim">{mod.description}</p>
+            <p class="tags">
+              {mod.type && <span class="tag type-tag">{mod.type}</span>}
+              {mod.tags.map((tag) => <span class="tag">{tag}</span>)}
+            </p>
+          </a>
+        </li>
+      ))}
+    </ul>
+    <p class="no-results" id="no-results" hidden>No mods match this filter.</p>
+  </section>
+</BaseLayout>
+
+<script>
+  const list = document.getElementById("mod-list");
+  const items = Array.from(list.querySelectorAll(".mod-card"));
+  const countEl = document.getElementById("result-count");
+  const noResultsEl = document.getElementById("no-results");
+  const typeButtons = Array.from(document.querySelectorAll("[data-filter-type]"));
+  const tagButtons = Array.from(document.querySelectorAll("[data-filter-tag]"));
+
+  let activeType = "";
+  let activeTag = "";
+
+  function apply() {
+    let visible = 0;
+    for (const item of items) {
+      const type = item.dataset.type ?? "";
+      const tags = (item.dataset.tags ?? "").split("|");
+      const matches = (!activeType || type === activeType) && (!activeTag || tags.includes(activeTag));
+      item.hidden = !matches;
+      if (matches) visible++;
+    }
+    countEl.textContent = `${visible} of ${items.length} mod${items.length === 1 ? "" : "s"} shown`;
+    noResultsEl.hidden = visible !== 0;
+  }
+
+  function wire(buttons, key) {
+    for (const btn of buttons) {
+      btn.addEventListener("click", () => {
+        for (const b of buttons) b.classList.remove("is-active");
+        btn.classList.add("is-active");
+        if (key === "type") activeType = btn.dataset.filterType ?? "";
+        else activeTag = btn.dataset.filterTag ?? "";
+        apply();
+      });
+    }
+  }
+  wire(typeButtons, "type");
+  wire(tagButtons, "tag");
+  apply();
+</script>
+
+<link rel="stylesheet" href="/pagefind/pagefind-ui.css" />
+<script is:inline src="/pagefind/pagefind-ui.js"></script>
+<script is:inline>
+  window.addEventListener("DOMContentLoaded", () => {
+    if (window.PagefindUI) {
+      new window.PagefindUI({ element: "#search", showSubResults: true, showImages: false });
+    }
+  });
+</script>
+
+<style>
+  .head { padding-block: var(--space-6) var(--space-4); }
+  .head .dim { color: var(--color-text-dim); }
+  .search-block { margin-bottom: var(--space-5); }
+  .filters { display: flex; flex-direction: column; gap: var(--space-3); margin-bottom: var(--space-4); }
+  .filter-group { display: flex; align-items: center; gap: var(--space-2); flex-wrap: wrap; }
+  .filter-label { font-family: var(--font-display); font-size: 0.75rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--color-text-faint); margin-right: var(--space-2); }
+  .chip {
+    font-family: var(--font-body);
+    font-size: 0.85rem;
+    padding: 0.3em 0.8em;
+    border-radius: 999px;
+    border: 1px solid var(--color-border);
+    background: transparent;
+    color: var(--color-text-dim);
+    cursor: pointer;
+  }
+  .chip:hover { border-color: var(--color-text-faint); color: var(--color-text); }
+  .chip.is-active { border-color: var(--color-ember); color: var(--color-ember-bright); background: rgba(226, 162, 77, 0.1); }
+  .result-count { color: var(--color-text-faint); font-size: 0.85rem; margin-bottom: var(--space-3); }
+  .mod-grid { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr)); gap: var(--space-4); }
+  .mod-card a { text-decoration: none; color: inherit; display: block; }
+  .card-head { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); }
+  .card-head h3 { margin-bottom: 0; }
+  .id-line { color: var(--color-text-faint); font-size: 0.8rem; margin: 0.2em 0 var(--space-2); }
+  .mod-card .dim { color: var(--color-text-dim); font-size: 0.95rem; }
+  .mod-card .tags { display: flex; flex-wrap: wrap; gap: var(--space-2); margin-top: var(--space-3); margin-bottom: 0; }
+  .type-tag { border-color: var(--color-ember-dim); color: var(--color-ember-bright); }
+  .no-results { color: var(--color-text-faint); padding-block: var(--space-5); }
+</style>

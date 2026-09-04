@@ -1,0 +1,22 @@
+---
+// Original decorative divider: a simple procedurally-symmetric line-and-diamond motif, hand
+// authored as inline SVG for this task. No external asset, no Blizzard iconography (ADR-0004).
+// See docs/design.md, "How decorative art was produced".
+---
+<div class="ornament" role="presentation" aria-hidden="true">
+  <svg viewBox="0 0 240 24" preserveAspectRatio="xMidYMid meet">
+    <line x1="0" y1="12" x2="100" y2="12" stroke="currentColor" stroke-width="1"/>
+    <line x1="140" y1="12" x2="240" y2="12" stroke="currentColor" stroke-width="1"/>
+    <path d="M120 2 L130 12 L120 22 L110 12 Z" fill="currentColor"/>
+  </svg>
+</div>
+
+<style>
+  .ornament {
+    color: var(--color-border);
+    display: flex;
+    justify-content: center;
+    margin-block: var(--space-6);
+  }
+  .ornament svg { width: 15rem; height: 1.5rem; }
+</style>

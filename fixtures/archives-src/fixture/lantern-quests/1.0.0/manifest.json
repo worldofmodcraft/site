@@ -1,0 +1,19 @@
+{
+  "id": "fixture:lantern-quests",
+  "name": "Lantern Quests",
+  "version": "1.0.0",
+  "api_version": "1.0",
+  "license": "Apache-2.0",
+  "source": "https://github.com/fixture-author-two/lantern-quests",
+  "type": "mod",
+  "description": "A short phosphorescent quest chain through the old mine tunnels, ending at an abandoned prospector's camp.",
+  "tags": [
+    "quest",
+    "exploration"
+  ],
+  "screenshots": [
+    "assets/screenshots/mine-tunnel.png",
+    "assets/screenshots/lantern.png"
+  ],
+  "ai_assisted": true
+}
