@@ -1,0 +1,181 @@
+---
+// URL scheme (E14, depgraph.md): /mods/<ns>/<name>. This file's own path IS that contract --
+// Astro's file-based routing makes the scheme visible in the repo layout, not just in prose.
+import fs from "node:fs";
+import BaseLayout from "../../../layouts/BaseLayout.astro";
+import { CONTENT_DATA_FILE } from "../../../lib/config.mjs";
+
+export function getStaticPaths() {
+  const mods = JSON.parse(fs.readFileSync(CONTENT_DATA_FILE, "utf8"));
+  return mods.map((mod) => ({
+    params: { ns: mod.ns, name: mod.name },
+    props: { mod },
+  }));
+}
+
+const { mod } = Astro.props;
+
+// modcraft:// URI shape. ASSUMPTION (recorded here and in docs/build.md's assumptions list): no
+// ADR or contract fixes this format yet -- ADR-0003 names the scheme, not its path grammar, and
+// the launcher that would parse it does not exist in this phase (mission SS2). Chosen shape:
+// modcraft://install/<namespace>/<name>@<version> -- mirrors the site's own URL scheme (E14) with
+// the version pinned, since "install" should be unambiguous about what gets installed.
+const installUri = `modcraft://install/${mod.ns}/${mod.name}@${mod.currentVersion}`;
+const currentVersionEntry = mod.versions.find((v) => v.version === mod.currentVersion);
+---
+<BaseLayout title={mod.displayName} description={mod.description}>
+  <article class="container mod-page">
+    <header class="mod-header">
+      <p class="eyebrow mono">{mod.id}</p>
+      <div class="title-row">
+        <h1>{mod.displayName}</h1>
+        {mod.deprecated && <span class="badge-status removed">Deprecated</span>}
+      </div>
+      <p class="lede">{mod.description}</p>
+      <p class="tags">
+        {mod.type && <span class="tag type-tag">{mod.type}</span>}
+        {mod.tags.map((tag) => <span class="tag">{tag}</span>)}
+      </p>
+    </header>
+
+    <section class="install-block card" aria-labelledby="install-heading">
+      <h2 id="install-heading">Install</h2>
+      <p class="dim">
+        The <code>modcraft://</code> protocol handler is not built yet (it ships with the
+        launcher, a later phase of this project) -- clicking below will not do anything on your
+        system today. Until then, download the archived source directly.
+      </p>
+      <div class="install-actions">
+        <span class="btn" aria-disabled="true" title="Launcher coming soon -- modcraft:// has no handler installed yet">
+          Install via modcraft:// <span class="soon">(launcher coming soon)</span>
+        </span>
+        <a class="btn btn-quiet" href={currentVersionEntry.source_archive} rel="noopener">
+          Download archived source ({mod.currentVersion})
+        </a>
+      </div>
+      <p class="uri-preview mono dim">{installUri}</p>
+    </section>
+
+    {mod.screenshots.length > 0 && (
+      <section class="gallery-block" aria-labelledby="gallery-heading">
+        <h2 id="gallery-heading">Screenshots</h2>
+        <ul class="gallery">
+          {mod.screenshots.map((src) => (
+            <li>
+              <img src={src} alt={`${mod.displayName} screenshot`} loading="lazy" width="640" height="360" />
+            </li>
+          ))}
+        </ul>
+      </section>
+    )}
+
+    <section class="readme-block" aria-labelledby="readme-heading">
+      <h2 id="readme-heading">README</h2>
+      {mod.readmeHtml
+        ? <div class="readme-content" set:html={mod.readmeHtml} />
+        : <p class="dim">
+            No README was found for this version's archived source
+            (<code>contracts/archive-layout.md</code>: a README is optional, not an error).
+          </p>}
+    </section>
+
+    <section class="version-block" aria-labelledby="versions-heading">
+      <h2 id="versions-heading">Versions</h2>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th scope="col">Version</th>
+              <th scope="col">Status</th>
+              <th scope="col">Commit</th>
+              <th scope="col">Archived source</th>
+              <th scope="col">Published</th>
+            </tr>
+          </thead>
+          <tbody>
+            {mod.versions.map((v) => (
+              <tr>
+                <td class="mono">{v.version}</td>
+                <td><span class={`badge-status ${v.status}`}>{v.status}</span></td>
+                <td class="commit-hash" title={v.commit}>{v.commit.slice(0, 10)}</td>
+                <td><a href={v.source_archive} rel="noopener">Archived source ↗</a></td>
+                <td class="dim">{new Date(v.published_at).toISOString().slice(0, 10)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      {mod.versions.some((v) => v.status === "removed") && (
+        <div class="removed-reasons">
+          {mod.versions.filter((v) => v.status === "removed").map((v) => (
+            <p class="removed-reason">
+              <strong>{v.version} removed:</strong> {v.reason}
+            </p>
+          ))}
+        </div>
+      )}
+    </section>
+
+    <section class="meta-block card" aria-labelledby="meta-heading">
+      <h2 id="meta-heading">Licence &amp; links</h2>
+      <dl>
+        <div>
+          <dt>Licence</dt>
+          <dd>
+            {mod.license
+              ? <>{mod.license} — see <a href="/about#licensing">what this means</a>.</>
+              : "Unavailable -- this version's manifest could not be read from its archive."}
+          </dd>
+        </div>
+        {mod.aiAssisted !== null && (
+          <div>
+            <dt>AI-assisted</dt>
+            <dd>{mod.aiAssisted ? "Yes, per the author's own disclosure." : "No, per the author's own disclosure."}</dd>
+          </div>
+        )}
+        {mod.links.length > 0 && (
+          <div>
+            <dt>Links</dt>
+            <dd>
+              <ul class="link-list">
+                {mod.links.map((l) => <li><a href={l.url} rel="noopener">{l.label} ↗</a></li>)}
+              </ul>
+            </dd>
+          </div>
+        )}
+      </dl>
+    </section>
+  </article>
+</BaseLayout>
+
+<style>
+  .mod-page { padding-block: var(--space-6) var(--space-7); }
+  .mod-header { margin-bottom: var(--space-5); }
+  .title-row { display: flex; align-items: center; gap: var(--space-3); flex-wrap: wrap; }
+  .lede { font-size: 1.1rem; color: var(--color-text-dim); max-width: 62ch; }
+  .tags { display: flex; flex-wrap: wrap; gap: var(--space-2); margin-top: var(--space-3); }
+  .type-tag { border-color: var(--color-ember-dim); color: var(--color-ember-bright); }
+
+  .install-block { margin-bottom: var(--space-6); }
+  .install-actions { display: flex; gap: var(--space-3); flex-wrap: wrap; margin-block: var(--space-3); }
+  .soon { font-size: 0.75em; opacity: 0.8; }
+  .uri-preview { word-break: break-all; }
+
+  .gallery-block, .readme-block, .version-block { margin-bottom: var(--space-6); }
+  .gallery { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr)); gap: var(--space-3); }
+  .gallery img { width: 100%; height: auto; border-radius: var(--radius); border: 1px solid var(--color-border-soft); display: block; }
+
+  .readme-content { max-width: 72ch; }
+
+  .table-wrap { overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; font-size: 0.95rem; }
+  th, td { text-align: left; padding: var(--space-2) var(--space-3); border-bottom: 1px solid var(--color-border-soft); white-space: nowrap; }
+  th { font-family: var(--font-display); font-size: 0.75rem; letter-spacing: 0.06em; text-transform: uppercase; color: var(--color-text-faint); }
+  .removed-reasons { margin-top: var(--space-3); }
+  .removed-reason { color: var(--color-text-dim); font-size: 0.92rem; border-left: 2px solid var(--color-danger); padding-left: var(--space-3); }
+
+  .meta-block dl { display: flex; flex-direction: column; gap: var(--space-3); margin: 0; }
+  .meta-block dt { font-family: var(--font-display); font-size: 0.75rem; letter-spacing: 0.06em; text-transform: uppercase; color: var(--color-text-faint); margin-bottom: 0.2em; }
+  .meta-block dd { margin: 0; }
+  .link-list { list-style: none; padding: 0; margin: 0; display: flex; flex-wrap: wrap; gap: var(--space-3); }
+</style>

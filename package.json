@@ -1,0 +1,36 @@
+{
+  "name": "worldofmodcraft-site",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "license": "AGPL-3.0-or-later",
+  "description": "Static site generator for worldofmodcraft.com. Generates the portal from registry data and archived source tarballs. See README.md and docs/build.md.",
+  "scripts": {
+    "prepare-content": "node scripts/prepare-content.mjs",
+    "build": "npm run prepare-content && astro build && npm run index-search && npm run normalize-pagefind-urls && npm run verify-dist",
+    "index-search": "pagefind --site dist",
+    "normalize-pagefind-urls": "node scripts/normalize-pagefind-urls.mjs",
+    "verify-dist": "node scripts/verify-dist.mjs",
+    "dev": "npm run prepare-content && astro dev",
+    "preview": "astro preview",
+    "validate-fixtures": "node scripts/validate-fixtures.mjs",
+    "make-fixture-screenshots": "node scripts/make-fixture-screenshots.mjs",
+    "make-fixture-archives": "node scripts/make-fixture-archives.mjs",
+    "test:archive-safety": "node scripts/self-test-archive-safety.mjs",
+    "test": "npm run validate-fixtures && npm run test:archive-safety && npm run build"
+  },
+  "dependencies": {
+    "astro": "7.3.1",
+    "markdown-it": "15.0.1",
+    "tar": "7.5.22",
+    "@fontsource/cinzel": "5.3.0",
+    "@fontsource/eb-garamond": "5.3.0"
+  },
+  "devDependencies": {
+    "ajv": "8.20.0",
+    "pagefind": "1.5.2"
+  },
+  "allowScripts": {
+    "esbuild@0.28.2": true
+  }
+}

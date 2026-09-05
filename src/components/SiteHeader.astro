@@ -1,0 +1,84 @@
+---
+const { pathname } = Astro.url;
+const nav = [
+  { href: "/", label: "Start" },
+  { href: "/browse", label: "Browse" },
+  { href: "/about", label: "About & Licensing" },
+];
+function isActive(href) {
+  if (href === "/") return pathname === "/";
+  return pathname.startsWith(href);
+}
+---
+<header class="site-header">
+  <div class="container bar">
+    <a class="wordmark" href="/">
+      <svg class="wordmark-icon" viewBox="0 0 64 64" aria-hidden="true">
+        <path d="M14 44 C 14 30, 22 26, 22 16 C 30 24, 26 32, 30 38 C 34 30, 30 24, 34 16 C 42 26, 34 34, 40 44"
+              fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round" opacity="0.55"/>
+        <path d="M32 46 C 26 40, 27 33, 32 27 C 37 33, 38 40, 32 46 Z" fill="var(--color-ember)"/>
+      </svg>
+      <span>World of <em>Modcraft</em></span>
+    </a>
+    <nav aria-label="Primary">
+      <ul>
+        {nav.map((item) => (
+          <li>
+            <a href={item.href} aria-current={isActive(item.href) ? "page" : undefined}>{item.label}</a>
+          </li>
+        ))}
+      </ul>
+    </nav>
+  </div>
+</header>
+
+<style>
+  .site-header {
+    border-bottom: 1px solid var(--color-border-soft);
+    background: rgba(15, 13, 10, 0.85);
+    backdrop-filter: blur(6px);
+    position: sticky;
+    top: 0;
+    z-index: 20;
+  }
+  .bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-4);
+    padding-block: var(--space-3);
+    flex-wrap: wrap;
+  }
+  .wordmark {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    font-family: var(--font-display);
+    font-size: 1.05rem;
+    letter-spacing: 0.04em;
+    color: var(--color-text);
+    text-decoration: none;
+  }
+  .wordmark em { font-style: normal; color: var(--color-ember-bright); }
+  .wordmark-icon { width: 1.6rem; height: 1.6rem; color: var(--color-moss); }
+  nav ul {
+    list-style: none;
+    display: flex;
+    gap: var(--space-4);
+    margin: 0;
+    padding: 0;
+    flex-wrap: wrap;
+  }
+  nav a {
+    font-family: var(--font-display);
+    font-size: 0.82rem;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--color-text-dim);
+    text-decoration: none;
+    padding-bottom: 2px;
+    border-bottom: 1px solid transparent;
+  }
+  nav a:hover, nav a:focus-visible { color: var(--color-text); }
+  nav a[aria-current="page"] { color: var(--color-ember-bright); border-bottom-color: var(--color-ember-dim); }
+</style>

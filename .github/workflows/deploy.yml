@@ -1,0 +1,85 @@
+name: Build and deploy site
+
+# Two triggers, per the task spec's acceptance criterion 9:
+#   1. A push to this repository's main branch (the ordinary "we changed the generator" case).
+#   2. A repository_dispatch sent by worldofmodcraft/registry after a merge (ADR-0059 SS1: "Every
+#      merge to the registry triggers the static site build").
+#
+# ASSUMPTION bound to task 025 (depgraph edge E12, contracts/rebuild-trigger.md -- does not exist
+# yet in the registry repository as of this task): the dispatch event type is named
+# "registry-updated" below, with no payload fields read by this workflow. Task 025 owns the
+# authoritative contract; if it names a different event type or adds payload fields this build
+# should react to, update the `types:` list below (and this comment) to match in the same PR that
+# adds the trigger on the registry side. Until that contract exists, this is this repository's
+# half of a two-sided agreement that the registry side must also honour.
+on:
+  push:
+    branches: [main]
+  repository_dispatch:
+    types: [registry-updated]
+  workflow_dispatch: {} # manual "rebuild now" button, useful while wiring this up
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Only one deployment at a time; a new push/dispatch supersedes an in-flight one rather than
+# queuing behind it (GitHub's own recommended Pages concurrency pattern).
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out this repository
+        uses: actions/checkout@v4
+
+      # NOT YET WIRED UP: a real deployment needs two more inputs this repository does not itself
+      # produce -- a checkout of worldofmodcraft/registry (for REGISTRY_DIR) and archived source
+      # tarballs staged locally (for ARCHIVE_DIR, see src/lib/config.mjs's own doc comment on why
+      # this build never fetches them itself). Both need task 025's E11/E13 contracts to exist
+      # before this workflow can wire them in without guessing a shape. Until then this workflow
+      # builds from this repository's own fixtures (the defaults), which is a genuine, working
+      # build -- just not yet one that reflects real published mods. See docs/build.md.
+      #
+      # - name: Check out worldofmodcraft/registry
+      #   uses: actions/checkout@v4
+      #   with:
+      #     repository: worldofmodcraft/registry
+      #     path: registry-checkout
+      # - name: Stage archived source tarballs
+      #   run: ... # depends on contracts/archive-layout.md (E11) and contracts/site-output.md (E13)
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Archive path-escape safety self-test (contracts/archive-layout.md)
+        run: npm run test:archive-safety
+
+      - name: Build (fixtures -- see docs/build.md to point this at a real registry checkout)
+        run: npm run build
+
+      - name: Upload build output
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

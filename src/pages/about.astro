@@ -1,0 +1,120 @@
+---
+import BaseLayout from "../layouts/BaseLayout.astro";
+import OrnamentDivider from "../components/OrnamentDivider.astro";
+---
+<BaseLayout
+  title="About & Licensing"
+  description="What World of Modcraft is, its current development status, and how licensing works across the platform, its SDK and the mods it hosts."
+>
+  <section class="container head">
+    <p class="eyebrow">About</p>
+    <h1>What this is</h1>
+    <p class="lede">
+      World of Modcraft is a modding platform being built for a classic-era ("3.3.5a") World of
+      Warcraft private server: a forked client, a forked server, a small shared runtime kernel that
+      mods program against, and this portal, which turns a published mod's own git repository into
+      a page here.
+    </p>
+    <p>
+      Nothing on this site is Blizzard-owned. Mods on this platform may only ship their own
+      original assets — no extracted, edited or re-created Blizzard game data of any kind. That
+      rule exists because private servers already sit in a legal grey area, and the project's only
+      defensible position is to never distribute a single byte Blizzard owns.
+    </p>
+  </section>
+
+  <section class="container status" id="status">
+    <h2>Development status</h2>
+    <p>
+      <strong>This platform is in development.</strong> There is no kernel yet, no client/server
+      fork release, and no launcher — so nothing here can be installed and run today. What exists
+      is the publishing side: a registry that records mods and their versions, an archival pipeline
+      that keeps a mod's source safe even if its author's repository disappears, and this
+      generated site. When a mod page shows an "Install" button, it links to the archived source
+      you'd need, and is explicit that the launcher itself isn't built yet.
+    </p>
+    <p>
+      Every decision behind how this platform works — and why it works that way rather than some
+      other way — is written down as it's made. Read the{" "}
+      <a href="https://github.com/worldofmodcraft/platform" rel="noopener">decision log</a>{" "}
+      for the reasoning, including the decisions that shaped this very site.
+    </p>
+  </section>
+
+  <OrnamentDivider />
+
+  <section class="container licensing" id="licensing">
+    <h2>Licensing, in plain language</h2>
+    <p>
+      Three different kinds of code live in and around this platform, and each uses a different
+      licence on purpose. None of this is legal advice — read the actual licence text linked below
+      for anything that matters to you — but here is what each choice is <em>for</em>.
+    </p>
+
+    <div class="license-grid">
+      <div class="card license-card">
+        <h3>The platform itself</h3>
+        <p class="license-name mono">AGPL-3.0-or-later</p>
+        <p>
+          The server fork, the client fork, the shared kernel, the launcher, this site's own
+          generator, and the build/registry tooling are all AGPL. AGPL is a "copyleft" licence:
+          anyone can run this software, study it and modify it, but if they change it and let
+          other people use their modified version — including over a network, which is the part
+          plain GPL doesn't cover — they have to share those changes too. In practice, this
+          guarantees a closed, proprietary "World of Modcraft" fork can never exist: any competing
+          version has to stay open, the same way this one is.
+        </p>
+      </div>
+
+      <div class="card license-card">
+        <h3>The mod-development SDK</h3>
+        <p class="license-name mono">MIT, with a linking clause</p>
+        <p>
+          The headers, interface definitions, generated bindings, mod project templates and CLI
+          library that a mod author actually codes against are MIT-licensed — about as permissive
+          as licences get — plus one explicit clause: using the SDK the normal way (calling its
+          published interface from your own mod) does <em>not</em> make your mod a "derivative
+          work" of the AGPL kernel underneath it. Without that clause, AGPL's copyleft could
+          arguably reach up through the SDK into every mod built with it, which would force every
+          mod to be AGPL too. The clause exists specifically so that doesn't happen.
+        </p>
+      </div>
+
+      <div class="card license-card">
+        <h3>Individual mods</h3>
+        <p class="license-name mono">Any OSI-approved open-source licence</p>
+        <p>
+          A mod's author can choose any licence on the{" "}
+          <a href="https://opensource.org/licenses" rel="noopener">official OSI-approved list</a> —
+          MIT, Apache-2.0, GPL, and dozens more all qualify. The one thing that's <em>not</em>
+          allowed is a closed-source or "all rights reserved" mod: publishing here requires the
+          source to be genuinely open. Two knock-on rules: an "unsafe-tier" plugin (one that
+          touches lower-level, riskier parts of the kernel and therefore includes AGPL-licensed
+          headers) must use an AGPL-compatible licence itself; and a packaged legacy addon must
+          allow repackaging. Ordinary mods are free to pick whatever open licence suits them.
+        </p>
+      </div>
+    </div>
+
+    <p class="rationale">
+      Why split it this way? "Open" can mean two different things — permissive (anyone can do
+      anything, including close it off again later) or copyleft (it has to stay open). Copyleft on
+      the parts <em>this project</em> owns means the platform itself can never be taken closed-
+      source by anyone, including a future maintainer. Leaving mod authors free to choose their own
+      licence avoids scaring away contributors who don't want AGPL's obligations for their own
+      work — the platform's openness policy (not licence terms) is what already guarantees every
+      published mod stays source-available.
+    </p>
+  </section>
+</BaseLayout>
+
+<style>
+  .head { padding-block: var(--space-6) var(--space-4); }
+  .lede { font-size: 1.1rem; color: var(--color-text-dim); max-width: 62ch; }
+  .status p, .licensing > p { max-width: 68ch; color: var(--color-text-dim); }
+  .license-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr)); gap: var(--space-4); margin-block: var(--space-5); }
+  .license-card h3 { margin-bottom: var(--space-1); }
+  .license-name { color: var(--color-ember-bright); font-size: 0.85rem; margin-bottom: var(--space-2); }
+  .license-card p:last-child { color: var(--color-text-dim); font-size: 0.95rem; margin-bottom: 0; }
+  .rationale { max-width: 68ch; color: var(--color-text-dim); font-style: italic; }
+</style>

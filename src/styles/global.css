@@ -1,0 +1,242 @@
+/*
+  World of Modcraft -- global design tokens and base styles.
+
+  Design direction (acceptance criterion 8): dark, atmospheric, "subtly fantasy-flavoured"
+  without a single Blizzard-derived asset, name, font or icon (ADR-0004). The palette reads as
+  "campfire at dusk": near-black warm charcoal ground, an ember/amber accent, a quiet moss-green
+  counter-accent, on parchment-toned text -- deliberately restrained rather than saturated, so it
+  stays legible and doesn't read as a game HUD skin. See docs/design.md for the full rationale and
+  how this ties back to the fixture content (campfires, lanterns).
+
+  Typography: Cinzel (display/headings) + EB Garamond (body), both SIL OFL-1.1, self-hosted via
+  the @fontsource npm packages (see src/layouts/BaseLayout.astro) -- no CDN, no Google Fonts
+  network request, licence text ships inside each font package's own LICENSE file and is noted
+  in docs/design.md.
+*/
+
+:root {
+  /* Ground */
+  --color-bg: #0f0d0a;
+  --color-bg-raised: #171310;
+  --color-bg-raised-2: #201a15;
+  --color-border: #362c22;
+  --color-border-soft: #2a221b;
+
+  /* Text */
+  --color-text: #e9e0d2;
+  --color-text-dim: #b9ab97;
+  --color-text-faint: #8a7c6a;
+
+  /* Accents */
+  --color-ember: #e2a24d;
+  --color-ember-bright: #f3c377;
+  --color-ember-dim: #8a5a24;
+  --color-moss: #5c7c5e;
+  --color-moss-bright: #86a888;
+  --color-danger: #c05a4a;
+
+  /* Type */
+  --font-display: "Cinzel", "Cambria", Georgia, serif;
+  --font-body: "EB Garamond", Georgia, "Times New Roman", serif;
+  --font-mono: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+
+  /* Rhythm */
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.875rem;
+  --space-4: 1.25rem;
+  --space-5: 2rem;
+  --space-6: 3.25rem;
+  --space-7: 5rem;
+
+  --radius: 6px;
+  --max-width: 72rem;
+
+  color-scheme: dark;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  background: var(--color-bg);
+}
+
+body {
+  margin: 0;
+  background: var(--color-bg);
+  background-image:
+    radial-gradient(ellipse 60% 40% at 20% 0%, rgba(226, 162, 77, 0.07), transparent 60%),
+    radial-gradient(ellipse 50% 30% at 100% 10%, rgba(92, 124, 94, 0.06), transparent 60%);
+  background-attachment: fixed;
+  color: var(--color-text);
+  font-family: var(--font-body);
+  font-size: 1.0625rem;
+  line-height: 1.65;
+  -webkit-font-smoothing: antialiased;
+}
+
+h1, h2, h3, h4 {
+  font-family: var(--font-display);
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  line-height: 1.25;
+  color: var(--color-text);
+  margin: 0 0 var(--space-3);
+}
+
+h1 { font-size: clamp(2rem, 1.5rem + 2vw, 3rem); letter-spacing: 0.03em; }
+h2 { font-size: clamp(1.5rem, 1.25rem + 1vw, 2rem); }
+h3 { font-size: 1.25rem; }
+
+p { margin: 0 0 var(--space-3); }
+
+a {
+  color: var(--color-ember-bright);
+  text-decoration-color: rgba(243, 195, 119, 0.4);
+  text-underline-offset: 0.2em;
+}
+a:hover, a:focus-visible { color: var(--color-ember); }
+a:focus-visible, button:focus-visible, [tabindex]:focus-visible {
+  outline: 2px solid var(--color-ember-bright);
+  outline-offset: 2px;
+}
+
+.container {
+  max-width: var(--max-width);
+  margin-inline: auto;
+  padding-inline: var(--space-4);
+}
+
+.eyebrow {
+  font-family: var(--font-display);
+  font-size: 0.75rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--color-moss-bright);
+}
+
+.card {
+  background: var(--color-bg-raised);
+  border: 1px solid var(--color-border-soft);
+  border-radius: var(--radius);
+  padding: var(--space-4);
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-family: var(--font-display);
+  font-size: 0.85rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  text-decoration: none;
+  padding: 0.7em 1.3em;
+  border-radius: var(--radius);
+  border: 1px solid var(--color-ember-dim);
+  color: var(--color-ember-bright);
+  background: linear-gradient(180deg, rgba(226, 162, 77, 0.12), rgba(226, 162, 77, 0.04));
+  transition: background-color 0.15s ease, border-color 0.15s ease;
+}
+.btn:hover, .btn:focus-visible { background: rgba(226, 162, 77, 0.18); border-color: var(--color-ember); color: var(--color-ember-bright); }
+.btn[aria-disabled="true"] { opacity: 0.55; cursor: not-allowed; }
+.btn.btn-quiet {
+  border-color: var(--color-border);
+  color: var(--color-text-dim);
+  background: transparent;
+}
+.btn.btn-quiet:hover { color: var(--color-text); border-color: var(--color-text-faint); }
+
+.tag {
+  display: inline-block;
+  font-size: 0.78rem;
+  padding: 0.2em 0.65em;
+  border-radius: 999px;
+  border: 1px solid var(--color-border);
+  color: var(--color-moss-bright);
+  background: rgba(92, 124, 94, 0.08);
+  text-decoration: none;
+}
+.tag:hover, .tag:focus-visible { border-color: var(--color-moss-bright); color: var(--color-moss-bright); }
+
+.badge-status {
+  display: inline-block;
+  font-family: var(--font-display);
+  font-size: 0.7rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding: 0.15em 0.6em;
+  border-radius: 999px;
+}
+.badge-status.published { color: var(--color-moss-bright); border: 1px solid var(--color-moss); background: rgba(92, 124, 94, 0.1); }
+.badge-status.removed { color: var(--color-danger); border: 1px solid var(--color-danger); background: rgba(192, 90, 74, 0.1); }
+
+code, pre, .mono {
+  font-family: var(--font-mono);
+  font-size: 0.9em;
+}
+
+.commit-hash {
+  font-family: var(--font-mono);
+  font-size: 0.85em;
+  color: var(--color-text-dim);
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px; height: 1px;
+  padding: 0; margin: -1px;
+  overflow: hidden;
+  clip: rect(0,0,0,0);
+  white-space: nowrap;
+  border: 0;
+}
+
+::selection {
+  background: rgba(226, 162, 77, 0.35);
+  color: var(--color-text);
+}
+
+/*
+  Pagefind's default search UI (loaded on /browse, see src/pages/browse.astro) themes itself
+  entirely through these CSS custom properties. dist/pagefind/pagefind-ui.css defines its OWN
+  defaults on `:root`, and pagefind-ui.js injects that stylesheet into <head> at runtime --
+  AFTER this stylesheet has already been parsed -- so a same-selector `:root` override here would
+  lose the cascade (same specificity, later source wins). Defining these on `#search` instead
+  sidesteps that: inherited custom properties resolve from the nearest ancestor-or-self rule that
+  sets them, not from source order, so setting them directly on the container Pagefind mounts
+  into wins regardless of when its stylesheet loads. This is the supported customisation path
+  (Pagefind's own docs recommend scoping overrides to the mount element for exactly this reason),
+  not a fight with its generated classes via !important.
+*/
+#search {
+  --pagefind-ui-scale: 1;
+  --pagefind-ui-primary: var(--color-ember-bright);
+  --pagefind-ui-text: var(--color-text);
+  --pagefind-ui-background: var(--color-bg-raised);
+  --pagefind-ui-border: var(--color-border);
+  --pagefind-ui-tag: var(--color-bg-raised-2);
+  --pagefind-ui-border-width: 1px;
+  --pagefind-ui-border-radius: 6px;
+  --pagefind-ui-image-border-radius: 6px;
+  --pagefind-ui-font: var(--font-body);
+}
+
+/* README content rendered from an archived tarball -- see src/lib/markdown.mjs */
+.readme-content h1, .readme-content h2, .readme-content h3 { margin-top: var(--space-5); }
+.readme-content ul, .readme-content ol { padding-left: 1.4em; }
+.readme-content a { word-break: break-word; }
+.readme-content code {
+  background: var(--color-bg-raised-2);
+  padding: 0.1em 0.4em;
+  border-radius: 4px;
+}
+.readme-content pre {
+  background: var(--color-bg-raised-2);
+  padding: var(--space-3);
+  border-radius: var(--radius);
+  overflow-x: auto;
+  border: 1px solid var(--color-border-soft);
+}
