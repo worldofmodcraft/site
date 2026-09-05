@@ -115,6 +115,69 @@ function check(label, fn) {
   });
 }
 
+// ---- Attack 4 (fix round 1, F6): two different top-level roots in the same archive. The code ----
+// ---- already rejects this (validateAndDetermineRoot()'s "multiple top-level roots" branch); ----
+// ---- this test only adds the coverage that branch never had. ----
+{
+  const stageDir = path.join(work, "attack4-stage");
+  fs.mkdirSync(path.join(stageDir, "mod-a"), { recursive: true });
+  fs.mkdirSync(path.join(stageDir, "mod-b"), { recursive: true });
+  fs.writeFileSync(path.join(stageDir, "mod-a", "README.md"), "hello from a");
+  fs.writeFileSync(path.join(stageDir, "mod-b", "README.md"), "hello from b");
+  const tarballPath = path.join(work, "attack4.tar.gz");
+  execFileSync("tar", ["-czf", tarballPath, "-C", stageDir, "mod-a", "mod-b"]);
+
+  check("Archive with two different top-level roots is rejected", () => {
+    let threw = false;
+    try {
+      extractArchive(tarballPath, { ns: "attack", name: "four", version: "1.0.0" });
+    } catch (err) {
+      threw = true;
+      if (!(err instanceof MalformedArchiveError)) {
+        throw new Error(`expected MalformedArchiveError, got ${err.constructor.name}: ${err.message}`);
+      }
+    }
+    if (!threw) throw new Error("extractArchive did not throw -- an archive with two top-level roots was accepted");
+  });
+}
+
+// ---- Attack 5 (fix round 1, F3): a traversal entry whose OWN first segment is "..", so it would ----
+// ---- become `root` itself if only `segments.slice(1)` were checked (the exact bug fixed in ----
+// ---- src/lib/archive.mjs -- `hasParentSegment(rest)` skipped the very segment that becomes ----
+// ---- `root`). GNU tar refuses to WRITE a literal leading "../" via a plain archive creation, so, ----
+// ---- as with Attack 1, this uses --transform to rename an innocent top-level file entry to ----
+// ---- "../onlyfile.txt" after tar has already read it from disk, and archives ONLY that one file ----
+// ---- (no wrapping directory entry) so the "multiple top-level roots" check from Attack 4 can't ----
+// ---- mask this: this must be rejected specifically for containing "..", or the fix has regressed. ----
+{
+  const stageDir = path.join(work, "attack5-stage");
+  fs.mkdirSync(stageDir, { recursive: true });
+  fs.writeFileSync(path.join(stageDir, "onlyfile.txt"), "hello");
+  const tarballPath = path.join(work, "attack5.tar.gz");
+  execFileSync("tar", [
+    "-czf", tarballPath,
+    "--transform", "s#^onlyfile\\.txt$#../onlyfile.txt#",
+    "-C", stageDir,
+    "onlyfile.txt",
+  ]);
+
+  check("Entry whose own first segment is \"..\" is rejected (not just checked from the second segment on)", () => {
+    let threw = false;
+    try {
+      extractArchive(tarballPath, { ns: "attack", name: "five", version: "1.0.0" });
+    } catch (err) {
+      threw = true;
+      if (!(err instanceof MalformedArchiveError)) {
+        throw new Error(`expected MalformedArchiveError, got ${err.constructor.name}: ${err.message}`);
+      }
+      if (!err.message.includes('".."')) {
+        throw new Error(`rejected, but not for the ".." reason expected: ${err.message}`);
+      }
+    }
+    if (!threw) throw new Error('extractArchive did not throw -- an entry rooted at ".." was accepted');
+  });
+}
+
 // ---- Control: a genuinely well-formed archive (same shape as the real fixtures) still works. ----
 {
   const stageDir = path.join(work, "control", "good-mod-1.0.0");

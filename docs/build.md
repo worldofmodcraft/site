@@ -72,11 +72,24 @@ Two more scripts exist for working with fixtures specifically, not part of `npm 
   positive. Wired into `.github/workflows/deploy.yml` as a step before every build. Not part of
   `npm run build` itself (it shells out to the system `tar` binary to build test fixtures on the
   fly, which a normal build has no reason to do).
+- `npm run normalize-pagefind-urls` (`scripts/normalize-pagefind-urls.mjs`) -- fix round 1, finding
+  F2: strips the trailing slash Pagefind's CLI indexer puts on every fragment's `url` field, so
+  Pagefind's indexed URLs match `contracts/url-scheme.md` (E14). Chained between `index-search` and
+  `verify-dist` in `npm run build`. See the "Search" section above.
 - `npm run verify-dist` (`scripts/verify-dist.mjs`) -- checks the just-built `dist/` tree against
   `contracts/site-output.md` (E13): `.nojekyll`, `CNAME`'s exact content, `index.html`, one route
-  per mod, Pagefind's output, and no leaked local filesystem paths. Chained onto the end of
-  `npm run build` itself, so an incomplete deploy fails the build rather than being discovered by
-  someone looking at a live, broken site.
+  per mod, Pagefind's output, no leaked local filesystem paths (broadened in fix round 1, F8, to
+  also catch `/root/`, `/Users/` and `/github/workspace`), no trailing-slash page route in either
+  generated HTML `href`s or Pagefind's fragment URLs (fix round 1, F2/F8, so that fix can't
+  regress silently), and -- fix round 1, F1/F9 escalation -- that every file copied into
+  `dist/_generated/**/screenshots/` is a real image by magic bytes (PNG/JPEG/WEBP), never an
+  arbitrary file smuggled in via a path-escape bug, checked independently of whatever path
+  produced it. Chained onto the end of `npm run build` itself, so an incomplete or compromised
+  deploy fails the build rather than being discovered by someone looking at a live, broken (or
+  leaking) site.
+- `npm test` (added in fix round 1, finding F7) -- aliases the de-facto test suite this repository
+  already had no single entry point for: `validate-fixtures`, then `test:archive-safety`, then a
+  full `build` (which itself chains `verify-dist`, including the new checks above).
 
 ## Fixture data -- what it is, and what to do when real mods exist
 
@@ -123,7 +136,8 @@ still stands as this repository's own choice).
 | E13: `CNAME` content | Assumed the bare apex domain sufficed; no exact-format rule written down. | Exactly `worldofmodcraft.com`, lowercase, no scheme, no `www.`, no trailing slash, at most one trailing newline. | **Confirmed** -- `public/CNAME`'s content already matched exactly; `scripts/verify-dist.mjs` now checks this mechanically instead of by eye. |
 | E13: what else must exist | Assumed `dist/` + `CNAME` was sufficient (the graph's own one-line description). | `index.html` at the root, one route per mod matching E14's scheme, Pagefind's output tree, and no leaked local filesystem paths -- graded as all-or-nothing, not partial credit. | **Confirmed as the right instinct, formalised.** These were already true of this build's output by construction; `scripts/verify-dist.mjs` now checks all of them mechanically, wired onto the end of `npm run build` itself (E13's own "Questions" section left open whether such a check should be automated -- this repository chose to automate it). |
 | E12 | "rebuild trigger: `repository_dispatch` event type + payload" (depgraph.md's one-liner; no dedicated contract has landed for this edge yet). | Not yet available. | **Still an open assumption.** `.github/workflows/deploy.yml` uses event type `registry-updated`, no payload fields read. Re-check against `contracts/rebuild-trigger.md` once it exists. |
-| E14 | "URL scheme: `/mods/<ns>/<name>`" (depgraph.md's one-liner; no dedicated contract has landed for this edge yet, though `contracts/site-output.md` references it without restating it). | Not yet available as its own document. | **Still an open assumption.** `src/pages/mods/[ns]/[name].astro`'s own file path is this contract in the repo layout, not just prose; `astro.config.mjs` sets `trailingSlash: "ignore"` so both `/mods/<ns>/<name>` and `/mods/<ns>/<name>/` resolve. Re-check once `contracts/url-scheme.md` exists. |
+| E14 | "URL scheme: `/mods/<ns>/<name>`" (depgraph.md's one-liner; no dedicated contract had landed for this edge at the time this row was first written, though `contracts/site-output.md` references it without restating it). | `contracts/url-scheme.md` landed on `worldofmodcraft/registry`'s `task/025-boundary-contracts` branch during fix round 1: `https://worldofmodcraft.com/mods/<ns>/<name>`, **no trailing slash**, and explicitly names "Pagefind's own indexed URL for the identical mod" as something that must match byte-for-byte. | **Overridden (a real gap, found by review and closed in fix round 1).** `astro.config.mjs`'s `trailingSlash: "ignore"` still lets both forms resolve for the site's own routing, which is fine for that purpose, but Pagefind's CLI-driven indexer has no way to suppress the trailing slash it derives from the built file's directory path -- every fragment's indexed `url` came out as e.g. `/mods/fixture/lantern-quests/`, violating E14. Fixed with a post-index normalisation step, `scripts/normalize-pagefind-urls.mjs` (wired between `index-search` and `verify-dist` in `npm run build`), which strips the trailing slash from every fragment's `url` field (see its own header comment for why a per-page override wasn't available and why this is the boring option, and `src/lib/pagefind-fragment.mjs` for the shared fragment-file codec it and `verify-dist.mjs` both use). `scripts/verify-dist.mjs` now asserts this mechanically in two places -- no generated HTML `href` carries a trailing slash on a page route, and no Pagefind fragment's `url` does either -- so a regression in either one turns the build red instead of silently reappearing. |
+| E9: signature/hash verification before extraction | Not implemented, not considered -- see below. | `contracts/archive-layout.md` SS"Relationship to other contracts": "A consumer must complete E9's verification before extracting anything this document describes" -- i.e. a reader must verify `source_sha256` and `signature`/`key_id` against `contracts/signature-format.md` BEFORE `extractArchive()` ever opens the tarball. | **TODO -- not exploitable today, but a real gap, found in fix round 1 (F4) and recorded here rather than silently deferred.** Nothing in this branch performs E9's check. It is not exploitable *yet* because the workflow's tarball staging is commented "NOT YET WIRED UP" (`.github/workflows/deploy.yml`) -- there is no real, network-supplied tarball for a forged signature to ride in on; every tarball this build reads today is either this repository's own fixture (built and staged locally by `scripts/make-fixture-archives.mjs`) or whatever a future staging step places under `ARCHIVE_DIR`. **Whoever wires up real staging must add E9 verification before `extractArchive()` is called with a real, externally-supplied tarball path** -- this row is that explicit TODO, so it is not rediscovered from scratch. `contracts/signature-format.md` (E9) itself was not read for this task (out of the declared Context); read it fully before implementing the check. |
 
 **Still open, flagged for whoever reviews this against the final E11 text:** whether a missing
 `manifest.json` should really degrade the whole mod's licence/type/display-name (this repository's
@@ -131,9 +145,58 @@ choice) or should instead be treated as build-fatal given how central a licence 
 own acceptance criteria. No contract adjudicates this; it is a judgement call recorded here rather
 than silently made.
 
-If `contracts/rebuild-trigger.md` (E12) or `contracts/url-scheme.md` (E14) appear in the registry
-repository, re-read them against this table and reconcile any difference in the same PR, the same
-way E11 and E13 were reconciled here.
+If `contracts/rebuild-trigger.md` (E12) appears in the registry repository, re-read it against
+this table and reconcile any difference in the same PR, the same way E11, E13 and (in fix round 1)
+E14 were reconciled here.
+
+## Mod-supplied path safety -- every `path.join` whose second argument is mod-supplied data
+
+Fix round 1 (2026-09-05) found a BLOCKING finding (F1): `page.schema.json`'s `screenshots[]`
+pattern (`^(?!/)(?!.*://)(?!.*\\).+$`) forbids a leading `/`, a URL scheme, and a backslash, but
+**not** a `..` segment, so a schema-valid `page.json` could name
+`"../../../../../../etc/passwd"` and have it copied byte-for-byte into `public/_generated/` (and
+from there into `dist/`, served to the whole internet) under a harmless-looking `path.basename()`
+name. Fixed with a single shared, exported check, `isSafeModSuppliedRelativePath()`
+(`src/lib/archive.mjs`), reusing the same `..`-segment check the tar-entry validator already used,
+called before the join at `scripts/prepare-content.mjs`'s screenshot-copy loop (see that file for
+the exact line and the demonstration in the task log).
+
+The fix round's instructions required grepping **every** `path.join` in this repository whose
+second argument originates in mod-supplied data (not fixed strings, not this repository's own
+configuration) and recording a verdict for each -- not only the one that was broken:
+
+| Call site | Second argument | Verdict |
+|---|---|---|
+| `scripts/prepare-content.mjs` (screenshot copy loop) | `relPath` from `page.json`'s `screenshots[]` | **Was unsafe -- fixed in fix round 1 (F1).** Now guarded by `isSafeModSuppliedRelativePath()` before the join; a rejected path degrades that gallery slot (logs "rejected as unsafe", omits the slot, build continues) exactly as a missing screenshot already degraded. |
+| `manifest.schema.json`'s own `screenshots[]` field | N/A -- **never read by any code in this repository.** | **Dormant, same bug, currently unreachable.** The manifest schema carries the identical permissive pattern (no `..` exclusion) as `page.schema.json`'s, but `scripts/prepare-content.mjs` only reads `manifest.license`, `manifest.type`, `manifest.name` and `manifest.ai_assisted` from a parsed manifest -- `manifest.screenshots` is validated (schema-checked) but never joined onto a path anywhere. **If a future task wires this field up** (e.g. to seed `page.json`'s own `screenshots[]` at first publish, which is what the manifest schema's own description says it's for), it MUST call `isSafeModSuppliedRelativePath()` before any `path.join`, exactly like the fixed call site above -- do not re-derive this check. |
+| `scripts/prepare-content.mjs` (README read) | The literal string `"README.md"` | **Safe -- not mod-supplied.** Hard-coded, never comes from `page.json`/`manifest.json`/`entry.json`. |
+| `scripts/prepare-content.mjs` (manifest read) | The literal string `"manifest.json"` | **Safe -- not mod-supplied.** Same reasoning. |
+| `src/lib/archive.mjs`'s `localArchivePathFor()` | `url.pathname` from `entry.json`'s `source_archive` (a full `https://` URL, write-back-only field -- `^https://\S+$`) | **Safe, but not for the obvious reason -- verified, not assumed.** `new URL(...)`'s WHATWG-spec path parser resolves (and clamps) `.`/`..` segments, including percent-encoded ones (`%2e%2e`), during parsing itself -- confirmed directly in this environment: `new URL("https://x/../../../etc/passwd").pathname` returns `"/etc/passwd"`, never a string containing a literal `..` segment for `path.join` to act on, and clamps rather than erroring past the URL's own root. A `path.join(ARCHIVE_DIR, relativePath)` built from that `pathname` can therefore never escape `ARCHIVE_DIR` via `..`. (It is also write-back-only per ADR-0041/E8 -- pipeline-authored, not directly author-supplied -- but this verdict does not rely on that; it holds purely from the URL parser's own normalisation.) |
+| `src/lib/registry.mjs`'s `loadMods()` (`dir`, `entryPath`, `pagePath`) | `d.name`, from `fs.readdirSync(modsDir, {withFileTypes:true})` | **Safe -- not mod-supplied in the relevant sense.** `d.name` is a real, existing child of `modsDir` returned by the OS's own directory-listing call; a directory literally named `..` cannot exist as a listed child of another directory (the OS filesystem API doesn't allow it), so this can never carry a traversal segment regardless of what any JSON file says. |
+| `src/lib/archive.mjs`'s `extractArchive()` (`destDir = path.join(CACHE_DIR, ns, name, version)`) and `scripts/prepare-content.mjs`'s screenshot destination (`path.join(GENERATED_PUBLIC_DIR, "mods", mod.ns, mod.name, ...)`) | `ns`/`name` from `entry.json`'s `id` (pattern `^[a-z0-9][a-z0-9_-]*:[a-z0-9][a-z0-9_-]*$`); `version` (strict semver pattern) | **Safe by schema.** Neither pattern admits `/`, so no segment of either value can ever be `..` or contain a path separator at all. |
+
+## Content trust assumption (ADR-0120) -- stated explicitly, not implemented here
+
+**Added in fix round 1 (F5); ADR-0120 (content whitelisting, not container framing) was a
+retroactive Context-selection miss by the manager, not this task's original scope -- see
+`docs/tasks/009-site-build.md`'s Context section for the same note.** ADR-0120 requires that an
+*accepted* image asset on this platform contain only whitelisted structural elements (e.g. a PNG
+may carry only `IHDR`/`PLTE`/`IDAT`/`IEND` plus a short safe list -- no arbitrary private chunks
+that could smuggle other content past a magic-bytes-only check).
+
+**This repository does not implement that check, and is not the right place to.** `scripts/
+prepare-content.mjs` copies a mod's screenshot files out of its archive into `public/_generated/`
+(and from there into publicly-served `dist/`) verbatim, on the explicit, now-stated assumption
+that **registry ingestion already ran ADR-0120's whitelist check before the archive was accepted
+into the registry at all** -- this build only reads an already-accepted archive, it never accepts
+one. If that assumption is wrong (ingestion does not yet enforce ADR-0120, or enforces it more
+loosely than the ADR requires), this build would faithfully republish whatever slipped through,
+and closing that gap is ingestion's fix, not a re-validation duplicated here. `scripts/
+verify-dist.mjs`'s magic-bytes check (added in fix round 1 for a different reason -- see F1's
+regression check below) only confirms a copied file *is a well-formed image container of some
+kind* (PNG/JPEG/WEBP signature) -- it is a defence against an arbitrary non-image file being
+smuggled through a path-traversal bug, not an ADR-0120 interior-content whitelist, and must not be
+read as one.
 
 ## Deployment
 
@@ -198,6 +261,16 @@ properties, scoped to the `#search` mount element rather than `:root` -- see the
 runtime, after this one, so a same-selector override loses the cascade; scoping to the mount
 element sidesteps that because inherited custom properties resolve from the nearest ancestor, not
 from source order).
+
+**Fix round 1 (F2):** `pagefind --site dist` derives each page's indexed URL from the built file's
+own directory path, which always carries a trailing slash (`/mods/fixture/lantern-quests/`) --
+violating `contracts/url-scheme.md` (E14)'s no-trailing-slash rule, which explicitly names
+Pagefind's indexed URLs as something that must comply. `npm run build` now runs `npm run
+normalize-pagefind-urls` (`scripts/normalize-pagefind-urls.mjs`) immediately after `index-search`
+and before `verify-dist`, rewriting every fragment's `url` field to drop that trailing slash. See
+the "Assumptions bound to task 025" table's E14 row above for the full account, and
+`scripts/normalize-pagefind-urls.mjs`'s own header comment for why this was the boring fix over
+switching to Pagefind's Node indexing API.
 
 ## What "install" does today
 

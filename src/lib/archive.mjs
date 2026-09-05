@@ -45,6 +45,31 @@ function hasParentSegment(segments) {
 }
 
 /**
+ * The single, shared check for "is this mod-supplied relative path safe to join onto a
+ * filesystem directory" (fix round 1, finding F1). `page.schema.json`'s and
+ * `manifest.schema.json`'s `screenshots[]` patterns (`^(?!/)(?!.*://)(?!.*\\).+$`) already forbid
+ * a leading `/`, a URL scheme, and a backslash, but do **not** forbid a `..` segment -- so a
+ * schema-valid `page.json` can still name a path that escapes the archive root once joined
+ * (`../../../../etc/passwd`). This reuses the exact same segment check `hasParentSegment()` runs
+ * over tar entry names below, rather than a second, subtly different implementation. Every call
+ * site in this repository that joins a mod-supplied relative path onto a directory must call this
+ * first -- see docs/build.md's "mod-supplied path safety" audit table for the full list of call
+ * sites and why each other one is already safe without this check.
+ *
+ * @param {string} relPath a POSIX-style relative path from mod-supplied data (`page.json` /
+ *   `manifest.json` `screenshots[]`), already schema-valid (no leading `/`, no URL scheme, no
+ *   backslash) but NOT yet checked for `..`.
+ * @returns {boolean} true if relPath is safe to `path.join` onto a base directory.
+ */
+export function isSafeModSuppliedRelativePath(relPath) {
+  if (typeof relPath !== "string" || relPath.length === 0) return false;
+  if (relPath.startsWith("/")) return false;
+  const segments = relPath.split("/").filter(Boolean);
+  if (segments.length === 0) return false;
+  return !hasParentSegment(segments);
+}
+
+/**
  * Lists every entry in a tar(.gz) file without extracting anything, so the whole archive can be
  * validated before a single byte is written to disk.
  * @returns {{path: string, type: string, linkpath: string|undefined}[]}
@@ -85,7 +110,7 @@ function validateAndDetermineRoot(entries, identity) {
         `${identity}: entry "${entry.path}" has no top-level root directory (E11 requires exactly one).`,
       );
     }
-    const [firstSegment, ...rest] = segments;
+    const [firstSegment] = segments;
     if (root === undefined) {
       root = firstSegment;
     } else if (root !== firstSegment) {
@@ -93,7 +118,14 @@ function validateAndDetermineRoot(entries, identity) {
         `${identity}: multiple top-level roots ("${root}" and "${firstSegment}") -- E11 requires exactly one.`,
       );
     }
-    if (hasParentSegment(rest)) {
+    // Fix round 1, finding F3: this used to check only `segments.slice(1)`, leaving the first
+    // segment (the one that becomes `root`) unchecked -- an entry named "../onlyfile.txt" was
+    // accepted with root === "..". Not exploitable today because extractArchive()'s hard-coded
+    // `strip: 1` discards whatever the first segment is before any join, but it is a deviation
+    // from archive-layout.md's own wording ("anywhere in the path -- not only at the start") and
+    // would become live the moment this validator is reused without strip:1. Check the WHOLE
+    // path, including the segment that becomes root.
+    if (hasParentSegment(segments)) {
       throw new MalformedArchiveError(`${identity}: entry "${entry.path}" escapes the archive root via "..".`);
     }
     if (entry.type === "SymbolicLink" || entry.type === "Link") {

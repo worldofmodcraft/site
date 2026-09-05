@@ -27,6 +27,16 @@ In the platform repository `~/wom` (read-only — never write there):
 - **ADR-0041** — what a version page must show: hash, commit link, status, signature, `key_id`.
 - **ADR-0049** — licensing; the site needs a "Licensing explained" page.
 - **ADR-0004** — own assets only. This governs every pixel you produce.
+- **ADR-0120** (content whitelisting, not container framing) — **added retroactively during fix
+  round 1 (2026-09-05); this was the manager's Context-selection miss, not the implementing
+  agent's, since it postdates this task's original Context list and was never surfaced before
+  work started.** It applies here because this branch copies third-party screenshot PNGs verbatim
+  from a mod's archive into publicly-served `dist/` (`scripts/prepare-content.mjs`) with no
+  re-validation of their content at this layer — on the unstated assumption that registry
+  ingestion (a different component, ADR-0120's own home) already ran the whitelist check ADR-0120
+  requires before the archive was ever accepted. That assumption is now stated explicitly in
+  `docs/build.md`, not implemented here — PNG interior-content validation belongs to ingestion,
+  not the site build (see fix round 1's log entry for F5).
 - **ADR-0003** (naming), **ADR-0056** (English), **ADR-0103** (boring solutions).
 - `docs/tasks/MISSION-worldofmodcraft-site-v1.md` §1, §2 (out of scope), §4 D3, §7 (criteria 3, 4, 7).
 - `docs/architecture/depgraph.md` — nodes and the edge table. **E11, E12, E13 and E14 name contract
@@ -388,3 +398,295 @@ File scope respected throughout: no file outside this repository was written; th
 outside it were the (declared, read-only) platform repo, the registry repo's `contracts/`
 (including the task/025 branch worktree the coordinator pointed at), and this machine's own
 package/library files needed to install a verification-only headless browser.
+
+## Fix round 1 (2026-09-05)
+
+An independent adversarial review returned BLOCKING with three findings (F1-F3), all independently
+verified real by the manager before this round started, plus five non-blocking findings (F4-F8)
+and a verification-artefact requirement (F9). Every fix below was demonstrated with a command
+actually run and, where the finding was a defect in an existing check, mutation-tested: the
+check's subject was broken, the check was shown to redden, then both were restored. All commands
+below were re-run for this log entry; none of this output is invented.
+
+### F1 (BLOCKING) -- arbitrary local file read, published publicly
+
+**What changed:** `src/lib/archive.mjs` gained one shared, exported helper,
+`isSafeModSuppliedRelativePath(relPath)` (reuses the existing `hasParentSegment()` segment check --
+not a second, subtly different implementation). `scripts/prepare-content.mjs`'s screenshot-copy
+loop (was line 119, `const abs = path.join(extractedDir, relPath)`) now calls this helper before
+the join and, on rejection, degrades exactly as a missing screenshot degrades (log a warning, omit
+the gallery slot, keep building) -- but the warning says "rejected as unsafe", not "not found", per
+the brief.
+
+**Full audit of every `path.join` whose second argument is mod-supplied data** (grepped across
+`src/` and `scripts/`, verdict for each recorded in `docs/build.md`'s new "Mod-supplied path
+safety" section, reproduced here):
+
+| Call site | Verdict |
+|---|---|
+| `scripts/prepare-content.mjs` screenshot copy (`page.json`'s `screenshots[]`) | **Was unsafe -- fixed.** |
+| `manifest.schema.json`'s own `screenshots[]` | **Dormant, same bug, never read by any code in this repo today.** Flagged in `docs/build.md` so whoever wires it up reuses the shared helper instead of re-deriving the check. |
+| README read (`path.join(extractedDir, "README.md")`) | Safe -- hard-coded literal, not mod-supplied. |
+| manifest read (`path.join(extractedDir, "manifest.json")`) | Safe -- hard-coded literal. |
+| `localArchivePathFor()` (`source_archive` URL's `pathname`) | Safe, verified not assumed: `new URL(...)`'s WHATWG path parser resolves/clamps `.`/`..` (including `%2e%2e`) during parsing itself -- confirmed directly: `new URL("https://x/../../../etc/passwd").pathname === "/etc/passwd"`, never a literal `..` segment. |
+| `registry.mjs`'s `loadMods()` (`d.name` from `fs.readdirSync`) | Safe -- `d.name` is a real, already-existing child of the directory the OS just listed; a directory literally named `..` cannot exist as a listed child. |
+| `ns`/`name`/`version` joins (`CACHE_DIR`, `GENERATED_PUBLIC_DIR`) | Safe by schema -- `entry.json`'s `id` pattern and the semver pattern admit no `/` at all. |
+
+**Demonstration** (isolated scratch registry/archive built from a real copy of the
+`fixture:lantern-quests` fixture, `page.json`'s `screenshots[]` mutated to
+`["assets/screenshots/mine-tunnel.png", "../".repeat(20) + "etc/passwd"]` -- the clamping form, per
+the manager's escalation note, not a count-exact payload):
+```
+$ REGISTRY_DIR=.../f1-regress/registry ARCHIVE_DIR=.../f1-regress/archives \
+    node scripts/prepare-content.mjs
+...
+Screenshot copied from archive: .../mine-tunnel.png -> /_generated/mods/fixture/lantern-quests/screenshots/mine-tunnel.png
+WARNING -- fixture:lantern-quests: page.json screenshot "../../../../../../../../../../../../../../../../../../../../etc/passwd"
+  rejected as unsafe (escapes the archive root via ".." or is otherwise not a plain relative path)
+  -- omitting this gallery slot rather than failing the build (E11 degrade philosophy).
+
+Wrote 1 mod record(s) to .../.cache/site-content.json.
+$ echo EXIT=$?
+EXIT=0
+$ grep -rl "root:x:0:0" public/_generated   # /etc/passwd's own content, searched for anywhere in the generated tree
+(no output -- not found)
+```
+**Mutation test:** reverted `scripts/prepare-content.mjs` to its pre-fix-round-1 content and
+re-ran the same scratch fixture through `docs/tasks/009-verify.sh`'s own regression step:
+```
+STEP 4. Regression check for fix round 1, finding F1 ...
+...
+Screenshot copied from archive: /etc/passwd -> /_generated/mods/fixture/lantern-quests/screenshots/passwd
+FAIL  no 'rejected as unsafe' warning found -- ...
+LEAKED: public/_generated/mods/fixture/lantern-quests/screenshots/passwd is byte-identical to /etc/passwd
+FAIL  a local file was copied into the publicly-served tree via the traversal path -- F1 is NOT fixed
+```
+Restored the fix; re-ran; both checks green again. The mutation genuinely reproduced the reviewer's
+end-to-end exploit (a real byte-identical `/etc/passwd` landing in the publicly-served tree), and
+the regression check catches it.
+
+**Manager's escalation (verify-dist was blind to the exploit even with F1 fixed in isolation):**
+the manager reproduced F1 on the unmodified `f93be23` and found `scripts/verify-dist.mjs` printed
+"OK -- no local filesystem paths found in served HTML" while a byte-identical `/etc/passwd` sat in
+`dist/_generated/...` -- the old leak scan greped HTML text for path *strings*, with no notion of a
+foreign *file* in the generated tree. Fixed with a second, independent line of defence in
+`scripts/verify-dist.mjs`: every file under `dist/_generated/**/screenshots/` must now be a real
+image by magic bytes (PNG `89504e470d0a1a0a`, JPEG `ffd8ff`, or RIFF/WEBP), never by file extension
+(ADR-0120's typing philosophy). Demonstrated per the manager's explicit ask -- plant a non-image
+file, show it reddens, remove it:
+```
+$ echo "not a real image, just text" > dist/_generated/mods/fixture/lantern-quests/screenshots/sneaky.txt
+$ node scripts/verify-dist.mjs
+...
+FAIL  .../sneaky.txt is not a recognised image by magic bytes (PNG/JPEG/WEBP) -- this tree is
+      served publicly and must contain only screenshots copied from an archive, never an arbitrary
+      file (fix round 1, F1). Extension is not evidence of file type (ADR-0120).
+1 dist/ check(s) FAILED against contracts/site-output.md (E13).
+$ rm dist/_generated/mods/fixture/lantern-quests/screenshots/sneaky.txt
+$ node scripts/verify-dist.mjs
+...
+OK    all 5 file(s) under dist/_generated/ are real images by magic bytes
+dist/ satisfies every check this repository runs against contracts/site-output.md (E13).
+```
+**Narrowing stated explicitly, per the manager's note:** this primitive reads regular files with a
+real size that the build process's OS user can read (e.g. `/etc/passwd`) -- `fs.copyFileSync` on
+`/proc/self/environ` copies 0 bytes, so environment-borne CI secrets are not reachable through this
+specific primitive. The impact is "reads files the runner's user can read off disk", not "reads the
+runner's environment."
+
+### F2 (BLOCKING) -- E14 violated by Pagefind's indexed URLs
+
+**Read `contracts/url-scheme.md` (E14) in full** (landed on the registry's `task/025-boundary-
+contracts` branch): canonical mod-page URL is `/mods/<ns>/<name>`, no trailing slash, and Pagefind's
+own indexed URL is explicitly named as something that must match byte-for-byte.
+
+**Investigated, not guessed:** decompressed a `.pf_fragment` file directly (`gzip`-compressed bytes,
+literal 12-byte ASCII magic `"pagefind_dcd"` immediately followed by compact JSON, nothing after
+it) and read `{"url":"/about/","content":...}` -- confirmed every route's fragment carried a
+trailing slash, not only mod pages. Read `node_modules/pagefind/README.md` and `npx pagefind
+--help` in full: no CLI flag suppresses the trailing slash (`-k`/`--keep-index-url` only controls
+whether `index.html` stays at the end); a per-page override would require switching from the CLI to
+the Node indexing API, a bigger, less-boring change (ADR-0103) than fixing four bytes after the
+fact.
+
+**Fix:** a post-index normalisation step, `scripts/normalize-pagefind-urls.mjs`, wired into
+`npm run build` between `index-search` and `verify-dist`. It decodes every fragment (via the new
+shared `src/lib/pagefind-fragment.mjs`, also used by `verify-dist.mjs` so there is one
+implementation of the on-disk format, not two), strips exactly one trailing `/` from `url` (except
+the bare root `/`), and re-encodes. Applied uniformly to every route, not only `/mods/**`, because
+the site's own internal links (`browse.astro`, `index.astro`, `SiteFooter.astro`,
+`SiteHeader.astro`) already never emit a trailing slash for any route -- a single uniform rule
+matches that convention rather than special-casing mod pages.
+
+**Demonstration (real build output):**
+```
+> node scripts/normalize-pagefind-urls.mjs
+en_10267a5.pf_fragment: "/about/" -> "/about" (E14: no trailing slash)
+en_5fb0b0b.pf_fragment: "/mods/fixture/lantern-quests/" -> "/mods/fixture/lantern-quests" (E14: no trailing slash)
+en_77408b6.pf_fragment: "/browse/" -> "/browse" (E14: no trailing slash)
+en_782a552.pf_fragment: "/mods/fixture/campfire-tales/" -> "/mods/fixture/campfire-tales" (E14: no trailing slash)
+
+Checked 5 Pagefind fragment(s); rewrote 4 to drop a trailing slash.
+```
+`scripts/verify-dist.mjs` gained two permanent regression checks (F8's ask, "so F2 cannot regress
+silently"): no generated HTML `href` carries a trailing slash on a page route, and no Pagefind
+fragment's `url` does either.
+
+**Mutation test 1 (skip the normalize step):** built without running
+`normalize-pagefind-urls`, then ran `verify-dist.mjs`:
+```
+FAIL  .../en_10267a5.pf_fragment indexes url "/about/" with a trailing slash -- E14 ... Did npm run
+      normalize-pagefind-urls run before verify-dist?
+FAIL  .../en_5fb0b0b.pf_fragment indexes url "/mods/fixture/lantern-quests/" with a trailing slash ...
+FAIL  .../en_77408b6.pf_fragment indexes url "/browse/" with a trailing slash ...
+FAIL  .../en_782a552.pf_fragment indexes url "/mods/fixture/campfire-tales/" with a trailing slash ...
+4 dist/ check(s) FAILED against contracts/site-output.md (E13).
+```
+**Mutation test 2 (inject a trailing-slash href):** hand-edited `dist/index.html`'s `/browse` link
+to `/browse/`:
+```
+FAIL  dist/index.html links to "/browse/" with a trailing slash -- E14 (url-scheme.md) requires no
+      trailing slash on a page route.
+```
+Both restored with a clean `npm run build`; `verify-dist.mjs` green again both times (10 OK lines,
+0 FAIL). **F2 was fixed, not escalated** -- the boring post-index normalisation step worked.
+
+### F3 (BLOCKING) -- the path-escape check skips the first segment
+
+**What changed:** `src/lib/archive.mjs`'s `validateAndDetermineRoot()` used to destructure
+`const [firstSegment, ...rest] = segments` and call `hasParentSegment(rest)`, leaving the segment
+that becomes `root` unchecked. Now calls `hasParentSegment(segments)` over the whole path, matching
+`archive-layout.md`'s own wording ("anywhere in the path -- not only at the start").
+
+**Demonstration:** crafted a tar entry named literally `../onlyfile.txt` (GNU tar refuses to WRITE a
+leading `../` directly, so built it with an innocent name then `--transform`'d it after tar had
+already read the file from disk -- the same disguise technique the existing self-test's Attack 1
+already used, and confirmed with `node-tar`'s own `tar.list()` that the entry's path really is
+`"../onlyfile.txt"` inside the archive):
+```
+$ node -e '... extractArchive(".../attack2.tar.gz", {ns:"attack",name:"f3",version:"1.0.0"}) ...'
+REJECTED (GOOD): MalformedArchiveError attack:f3@1.0.0 (.../attack2.tar.gz): entry
+  "../onlyfile.txt" escapes the archive root via "..".
+```
+**Mutation test:** `git stash`'d back to the pre-fix `archive.mjs` and re-ran the identical archive
+against it:
+```
+ACCEPTED (confirms pre-fix bug) -- extracted to /home/ludwig/wt/site-task-009/.cache/archives/attack/f3/1.0.0
+```
+Confirms the fix is load-bearing, not coincidental. Fix restored; re-ran; rejected again.
+
+### F4 (non-blocking) -- E9 signature/hash verification, not yet wired up
+
+Read `contracts/signature-format.md`'s cross-reference in `archive-layout.md`: "a consumer must
+complete E9's verification before extracting anything this document describes." Not implemented in
+this branch, and not exploitable today (the workflow's tarball staging is commented "NOT YET WIRED
+UP" -- no externally-supplied tarball reaches `extractArchive()` yet). Added as an explicit named
+TODO row in `docs/build.md`'s "Assumptions bound to task 025" table (the E9 row) so whoever wires up
+real staging finds it there rather than rediscovering the gap.
+
+### F5 (non-blocking) -- ADR-0120 was a Context-selection miss
+
+Added ADR-0120 (content whitelisting, not container framing) to `docs/tasks/009-site-build.md`'s
+Context section, marked explicitly as a retroactive manager miss, not this task's original scope.
+Documented the actual, unstated assumption in `docs/build.md`'s new "Content trust assumption
+(ADR-0120)" section: this build copies archive screenshots into public `dist/` verbatim, trusting
+that registry ingestion already ran ADR-0120's whitelist check before the archive was accepted --
+PNG interior-content validation is NOT implemented here, by design; it belongs to ingestion. (The
+new magic-bytes check added for F1's escalation is a different, narrower thing -- "is this a
+well-formed image container at all" -- and `docs/build.md` explicitly says not to read it as an
+ADR-0120 whitelist.)
+
+### F6 (non-blocking) -- self-test coverage gaps
+
+Added two cases to `scripts/self-test-archive-safety.mjs`: **Attack 4**, two different top-level
+roots in one archive (the code already rejected this; the test didn't cover it), and **Attack 5**,
+an entry whose own first segment is `..` with no other entry to establish a different root first
+(the precise F3 regression -- see F3's mutation test above, run through this same test file):
+```
+$ npm run test:archive-safety
+PASS  Attack 1 (traversal entry not declared by any manifest) is rejected
+PASS  Attack 2 (symlink entry targeting outside the archive root) is rejected
+PASS  Archive with no top-level root directory is rejected
+PASS  Archive with two different top-level roots is rejected
+PASS  Entry whose own first segment is ".." is rejected (not just checked from the second segment on)
+PASS  A well-formed single-root archive still extracts successfully (no false positive)
+
+All archive-safety checks passed.
+```
+
+### F7 (non-blocking) -- no `npm test` script
+
+Added `"test": "npm run validate-fixtures && npm run test:archive-safety && npm run build"` to
+`package.json`, aliasing the de-facto suite this repository already ran piecemeal.
+
+### F8 (non-blocking) -- `verify-dist.mjs`'s leak scan too narrow
+
+Broadened the leak-needle list from `[REPO_ROOT, "/home/", "C:\\Users"]` to also include
+`"/root/"`, `"/Users/"`, and `"/github/workspace"`. **Mutation test:** injected
+`<p>debug: built at /root/ci-workspace/site</p>` into `dist/index.html`:
+```
+FAIL  dist/index.html contains what looks like a local filesystem path ("/root/") -- E13's
+      "no environment-specific values" rule.
+```
+Confirmed the OLD needle list would have missed it (`node -e '...oldNeedles.some(...)' ` ->
+`false`), confirming this is a real widening, not a no-op. Restored with a clean build; green
+again. (The canonical-URL assertions this same finding asked for are covered under F2 above.)
+
+### F9 -- verification artefact, and its mutation-test exercise
+
+`docs/tasks/009-verify.sh` (executable, `chmod +x`) runs, from a fresh checkout: dependency install
+if `node_modules` is missing, fixture validation, the archive-safety self-test, a clean
+`npm run build`, and the new F1 regression check (isolated scratch fixture, clamping-form
+traversal payload, asserts both the "rejected as unsafe" log line and that no byte-for-byte copy of
+`/etc/passwd` exists anywhere under `public/_generated/`), then a final restore build so the
+worktree is left in its normal state. Full real run:
+```
+$ ./docs/tasks/009-verify.sh
+...
+PASS  fixtures validate
+PASS  archive-safety self-test passed
+PASS  npm run build succeeded (chains prepare-content, astro build, index-search,
+      normalize-pagefind-urls, verify-dist -- E13/E14 checked as part of this)
+
+Generated routes (find dist -name index.html):
+dist/about/index.html
+dist/browse/index.html
+dist/index.html
+dist/mods/fixture/campfire-tales/index.html
+dist/mods/fixture/lantern-quests/index.html
+
+STEP 4. Regression check for fix round 1, finding F1 ...
+(prepare-content exited 0 against the hostile fixture, as expected -- E11 degrade, not fail)
+PASS  the traversal screenshot path was rejected as unsafe (F1 fix engaged)
+PASS  no file under public/_generated/ is a copy of /etc/passwd -- the traversal did not reach the published tree
+
+STEP 5. Restoring a real, clean build (so the worktree is left in its normal built state)
+PASS  final restore build succeeded
+
+PASS  All task 009 verification checks passed.
+```
+
+**Mutation-test summary (every check in the script, subject broken, check shown to redden, then
+restored):**
+
+| Check | Mutation | Result |
+|---|---|---|
+| Fixture validation | Deleted `page.json`'s required `tags` field | `Error: ... failed page.schema.json validation: - (root) must have required property 'tags'`, exit 1. Restored, green. |
+| Archive-safety self-test | Reverted `src/lib/archive.mjs` to pre-fix-round-1 | `FAIL Entry whose own first segment is ".." is rejected ...`, exit 1. Restored, green. |
+| Clean build | Moved `fixtures/registry` away | `Error: No mods directory at .../fixtures/registry/mods`, exit 1. Restored, green. |
+| F1 regression check | Reverted `scripts/prepare-content.mjs` to pre-fix-round-1 | Both sub-checks failed, with the real leak reproduced (`Screenshot copied from archive: /etc/passwd -> ...`, `LEAKED: ... is byte-identical to /etc/passwd`). Restored, green. |
+| verify-dist: generated-screenshot magic bytes (F1 escalation) | Planted `sneaky.txt` under `dist/_generated/**/screenshots/` | `FAIL .../sneaky.txt is not a recognised image by magic bytes ...`. Removed, green. |
+| verify-dist: Pagefind fragment URL / HTML href canonical form (F2/F8) | Skipped `normalize-pagefind-urls`; separately hand-edited an `href` to add a trailing slash | Both reddened with the exact fragment/file named. Restored via clean build, green. |
+| verify-dist: local-path leak scan (F8) | Injected `/root/...` text into `dist/index.html` | `FAIL dist/index.html contains what looks like a local filesystem path ("/root/")`. Confirmed the pre-F8 needle list would have missed it. Restored, green. |
+
+No check in this script (or in `verify-dist.mjs`/`self-test-archive-safety.mjs`) stayed green while
+its subject was broken.
+
+### Files changed this round
+`src/lib/archive.mjs` (F1 helper, F3 fix), `scripts/prepare-content.mjs` (F1 call site),
+`scripts/verify-dist.mjs` (F2/F8 canonical-URL checks, F8 broadened leak scan, F1-escalation
+magic-bytes check), `scripts/self-test-archive-safety.mjs` (F6), `package.json` (F7 `test` script,
+`normalize-pagefind-urls` wired into `build`), `scripts/normalize-pagefind-urls.mjs` (new, F2),
+`src/lib/pagefind-fragment.mjs` (new, shared fragment codec for F2), `docs/build.md` (F1 audit
+table, F2/F3/F4/F5/F8 documentation), `docs/tasks/009-site-build.md` (F5 Context addition, this
+log), `docs/tasks/009-verify.sh` (new, F9).

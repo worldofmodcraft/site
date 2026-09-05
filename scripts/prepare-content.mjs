@@ -23,7 +23,12 @@ import fs from "node:fs";
 import path from "node:path";
 import { loadMods } from "../src/lib/registry.mjs";
 import { highestPublished } from "../src/lib/semver.mjs";
-import { localArchivePathFor, extractArchive, MalformedArchiveError } from "../src/lib/archive.mjs";
+import {
+  localArchivePathFor,
+  extractArchive,
+  MalformedArchiveError,
+  isSafeModSuppliedRelativePath,
+} from "../src/lib/archive.mjs";
 import { renderReadme } from "../src/lib/markdown.mjs";
 import { validateOrThrow } from "../src/lib/validate.mjs";
 import { GENERATED_PUBLIC_DIR, CONTENT_DATA_FILE } from "../src/lib/config.mjs";
@@ -116,6 +121,22 @@ for (const mod of mods) {
   const galleryUrls = [];
   if (extractedDir) {
     for (const relPath of mod.page.screenshots) {
+      // Fix round 1, finding F1 (BLOCKING -- arbitrary local file read, published publicly):
+      // page.schema.json's screenshots[] pattern forbids a leading "/", a URL scheme, and a
+      // backslash, but NOT a ".." segment, so a schema-valid page.json could still name e.g.
+      // "../../../../etc/passwd" and have it copied byte-for-byte into public/_generated/ (and
+      // from there into dist/, served to the whole internet) under a harmless-looking
+      // path.basename() name. Reject BEFORE the join, using the same shared check
+      // src/lib/archive.mjs's tar-entry validation uses, and degrade exactly as a missing
+      // screenshot degrades (E11: log a warning, omit the gallery slot, keep building).
+      if (!isSafeModSuppliedRelativePath(relPath)) {
+        console.warn(
+          `WARNING -- ${mod.id}: page.json screenshot "${relPath}" rejected as unsafe (escapes the ` +
+            `archive root via ".." or is otherwise not a plain relative path) -- omitting this ` +
+            `gallery slot rather than failing the build (E11 degrade philosophy).`,
+        );
+        continue;
+      }
       const abs = path.join(extractedDir, relPath);
       if (!fs.existsSync(abs)) {
         console.warn(
