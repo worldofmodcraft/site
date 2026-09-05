@@ -690,3 +690,28 @@ magic-bytes check), `scripts/self-test-archive-safety.mjs` (F6), `package.json` 
 `src/lib/pagefind-fragment.mjs` (new, shared fragment codec for F2), `docs/build.md` (F1 audit
 table, F2/F3/F4/F5/F8 documentation), `docs/tasks/009-site-build.md` (F5 Context addition, this
 log), `docs/tasks/009-verify.sh` (new, F9).
+
+### Post-commit fresh-clone verification (F9's "must work in a fresh clone" requirement)
+
+After committing the round (`ad454e7`), cloned the worktree's own repository to a brand-new
+directory with `git clone` (a genuinely separate working tree, no `node_modules`, no `dist`, no
+`.cache`, no `public/_generated` -- confirmed with `ls node_modules` -> "No such file or
+directory" before running anything) and ran `./docs/tasks/009-verify.sh` there unmodified:
+```
+$ git clone /home/ludwig/wt/site-task-009 <scratch>/fresh-clone
+Cloning into '<scratch>/fresh-clone'... done.
+$ cd <scratch>/fresh-clone && ls node_modules
+ls: cannot access 'node_modules': No such file or directory
+$ ./docs/tasks/009-verify.sh
+...
+PASS  npm run build succeeded (chains prepare-content, astro build, index-search,
+      normalize-pagefind-urls, verify-dist -- E13/E14 checked as part of this)
+PASS  the traversal screenshot path was rejected as unsafe (F1 fix engaged)
+PASS  no file under public/_generated/ is a copy of /etc/passwd -- the traversal did not reach the published tree
+PASS  final restore build succeeded
+PASS  All task 009 verification checks passed.
+$ echo EXIT=$?
+EXIT=0
+```
+The script's own "0. Dependencies" step ran `npm ci` automatically (node_modules was missing), then
+every check passed identically to the in-worktree run. Scratch clone deleted afterward.
