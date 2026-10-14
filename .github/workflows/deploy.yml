@@ -53,6 +53,17 @@ jobs:
       # - name: Stage archived source tarballs
       #   run: ... # depends on contracts/archive-layout.md (E11) and contracts/site-output.md (E13)
 
+      - name: Check out worldofmodcraft/registry (default branch) for the schema check
+        uses: actions/checkout@v4
+        with:
+          repository: worldofmodcraft/registry
+          path: registry-checkout
+
+      - name: Vendored schemas equal the registry's contracts (task 041)
+        run: |
+          git -C registry-checkout rev-parse HEAD
+          node scripts/check-schemas.mjs registry-checkout
+
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:

@@ -1,0 +1,36 @@
+name: Schema sync check
+
+# The site vendors the registry's three contract schemas (schemas/README.md). This fails when
+# they differ, byte for byte, from worldofmodcraft/registry's default branch. Task 041.
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+jobs:
+  check-schemas:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out this repository
+        uses: actions/checkout@v4
+
+      - name: Check out worldofmodcraft/registry (default branch)
+        uses: actions/checkout@v4
+        with:
+          repository: worldofmodcraft/registry
+          path: registry-checkout
+
+      - name: Print the registry commit compared against
+        run: git -C registry-checkout rev-parse HEAD
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+
+      - name: Vendored schemas equal the registry's contracts
+        run: node scripts/check-schemas.mjs registry-checkout

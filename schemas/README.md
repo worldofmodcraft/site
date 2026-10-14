@@ -1,9 +1,10 @@
 # Vendored registry schemas
 
 `entry.schema.json`, `page.schema.json` and `manifest.schema.json` in this directory are byte-for-byte
-copies of `worldofmodcraft/registry`'s `contracts/{entry,page,manifest}.schema.json`, taken on
-**2026-09-04** (verified identical by `md5sum` against `~/registry/contracts/*.schema.json` at that
-date — the task brief states these merged to `main` "today" and are stable).
+copies of `worldofmodcraft/registry`'s `contracts/{entry,page,manifest}.schema.json`, last
+re-synced on **2026-10-15** (task 041) at registry commit `ec56e9f`, which added the `..`-segment
+exclusion to `screenshots[]` (registry task 034). Equality is enforced by `check-schemas`, not by
+this sentence.
 
 ## Why a vendored copy, not a path into the sibling checkout
 
@@ -14,7 +15,15 @@ and any future runtime schema check read these local copies so the site reposito
 
 ## Keeping them in sync
 
-These files are not the source of truth — `worldofmodcraft/registry` is. If the registry schemas
-change, re-copy them here in the same PR that adapts `src/lib/registry.ts` to the change, and update
-the date above. `scripts/validate-fixtures.mjs` fails loudly (not silently) if a fixture no longer
-matches, which is the signal that a re-copy is due.
+These files are not the source of truth — `worldofmodcraft/registry` is. Never edit them by hand.
+
+- `npm run sync-schemas -- <registry-checkout>` re-copies the three files from
+  `<registry-checkout>/contracts/` (exit 2, copying nothing, if any of the three is missing).
+- `npm run check-schemas -- <registry-checkout>` compares SHA-256 of the raw bytes: exit 0 and
+  `compared=3 differ=0` if identical, exit 1 naming every differing file, exit 2 on a usage error or a
+  missing file or directory. Neither script touches the network; you supply the checkout.
+- CI runs the check against a fresh checkout of the registry's default branch in
+  `.github/workflows/schema-sync.yml` (pull requests, pushes to main) and in `deploy.yml` before the
+  build. So a registry merge that changes a schema turns the site red until someone re-syncs: run
+  `sync-schemas`, then `npm test`, and merge. A fixture failing against a tightened schema is a finding,
+  not a fixture to loosen.
