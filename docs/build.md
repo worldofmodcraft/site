@@ -110,8 +110,9 @@ in the same PR that points `REGISTRY_DIR`/`ARCHIVE_DIR` at the real thing in
 `.github/workflows/deploy.yml`.
 
 `schemas/*.schema.json` are different: they are vendored **copies** of the registry's own
-contracts (see `schemas/README.md`), not fixtures, and should stay -- just kept in sync if the
-registry schemas change.
+contracts (see `schemas/README.md`), not fixtures, and should stay. They are re-copied with
+`npm run sync-schemas -- <registry-checkout>` and proven identical, byte for byte, by
+`npm run check-schemas -- <registry-checkout>`, which CI runs against the registry's `main` (task 041).
 
 ## Assumptions bound to task 025 -- and their reconciliation
 
