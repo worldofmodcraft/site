@@ -1,6 +1,6 @@
 # Task 041: Give the site's copies of the registry schemas a sync mechanism that can fail
 
-- **Mission:** SITE-V1 — **Status:** review (manager, 2026-10-14, after independent spec review round 2: PASS) 
+- **Mission:** SITE-V1 — **Status:** done (2026-10-15) (manager, 2026-10-14, after independent spec review round 2: PASS) 
 - **Agent / model:** implementer / sonnet
 - **Budget:** small (≤ 1 agent-session)
 - **Branch / worktree:** `task/041-site-schema-copies` / `~/wt/site-task-041` — **site** repo (`worldofmodcraft/site`)
@@ -166,3 +166,14 @@ Scripts + workflows + re-synced schemas + verify script + docs updated + this fi
   - --mutate: "MUTANT sync-partial: killed ... / MUTATION: all mutants killed / rc=0" (7 mutants, each killed by a named check: always-green, first-only, missing-is-ok, empty-list-ok, no-count, sync-subset, sync-partial).
 - Open (external, AC8): live CI run of schema-sync.yml on the PR with the registry sha printed in the run log (the workflow prints it); plus a throwaway branch flipping one byte, shown red, PR closed unmerged. URLs and registry sha to be recorded here by the manager. Not run: no push by instruction.
 - Assumption A (Questions) unchanged: file list hard-coded to three names.
+- 2026-10-15 manager:
+  - Fresh-clone re-run at HEAD 35c426a: `041-verify.sh --mutate` rc=0, `MUTATION: all mutants killed`.
+  - Independent review: PASS. Non-blocking: in deploy.yml the check runs before setup-node, so it uses the runner's
+    preinstalled Node. Booked; not changed.
+  - **AC8 green:** PR #2's `check-schemas` passed,
+    https://github.com/worldofmodcraft/site/actions/runs/38644919349. The run printed the registry commit
+    `4d4a204fb7368db7947d86c9f0e9abe72bf7bc96` and `compared=3 differ=0`.
+  - **AC8 red:** throwaway draft PR #3 (branch `throwaway/041-red-check`, one byte flipped in
+    `schemas/page.schema.json`) made `check-schemas` fail,
+    https://github.com/worldofmodcraft/site/actions/runs/38645012628. The PR was closed unmerged and the branch deleted.
+- Status: done.
