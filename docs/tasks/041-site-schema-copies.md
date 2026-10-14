@@ -1,6 +1,6 @@
 # Task 041: Give the site's copies of the registry schemas a sync mechanism that can fail
 
-- **Mission:** SITE-V1 — **Status:** spec-approved (manager, 2026-10-14, after independent spec review round 2: PASS) 
+- **Mission:** SITE-V1 — **Status:** review (manager, 2026-10-14, after independent spec review round 2: PASS) 
 - **Agent / model:** implementer / sonnet
 - **Budget:** small (≤ 1 agent-session)
 - **Branch / worktree:** `task/041-site-schema-copies` / `~/wt/site-task-041` — **site** repo (`worldofmodcraft/site`)
@@ -158,3 +158,11 @@ Scripts + workflows + re-synced schemas + verify script + docs updated + this fi
 # Task 041 log  (append-only, updated continuously by the executing agent)
 - 2026-09-06 draft opened by the manager (finding raised by the reviewer of registry PR #5).
 - 2026-10-14 gate-ready spec written under task 054; drift re-verified (page and manifest differ).
+- 2026-10-15 implementer: built check-schemas/sync-schemas, package.json entries, schema-sync.yml, one step in deploy.yml (before Node setup/build), re-synced page+manifest, README/build.md, docs/tasks/041-verify.sh. Pinned inputs: registry commit ec56e9f (digests re-verified by the verify script via git show: entry 32ff7b78fd1eeefa, page 8c4c1a2d66c80320, manifest 885a26c759713950; registry origin/main 4d4a204 has identical schemas); pre-fix site commit 37ff009 (stale page 1a476ea643554f2f, manifest 12c13c332341fa2a).
+- Red before fix (AC2, real output, run on the stale tree before sync): exit=1, "DIFFERS page.schema.json ... DIFFERS manifest.schema.json ... compared=3 differ=2"; entry not named.
+- AC6: npm test exit 0 on the re-synced schemas; no fixture needed loosening, no finding.
+- Fresh-clone run at sha cce2f45 (clone of the branch in /tmp/fc041, npm ci inside), tails:
+  - verify: "ok   AC9 README mentions check-schemas / VERIFY: PASS / rc=0" (all AC1-7, AC9 lines ok)
+  - --mutate: "MUTANT sync-partial: killed ... / MUTATION: all mutants killed / rc=0" (7 mutants, each killed by a named check: always-green, first-only, missing-is-ok, empty-list-ok, no-count, sync-subset, sync-partial).
+- Open (external, AC8): live CI run of schema-sync.yml on the PR with the registry sha printed in the run log (the workflow prints it); plus a throwaway branch flipping one byte, shown red, PR closed unmerged. URLs and registry sha to be recorded here by the manager. Not run: no push by instruction.
+- Assumption A (Questions) unchanged: file list hard-coded to three names.
