@@ -1,5 +1,5 @@
 {
-  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$Schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://worldofmodcraft.com/schemas/page.schema.json",
   "title": "Mod page content",
   "description": "Contract for edges E3 (author -> N2, page.json PRs, ADR-0059 Section 2-3) and E10 (N2 -> N7, the site build's read side, together with entry.schema.json) in docs/architecture/depgraph.md. One instance is the full page-content document for one mod, stored at mods/<namespace>.<name>/page.json (README.md). Unlike entry.json, this document is NOT append-only: ADR-0059 Section 2 calls it \"immediately editable\" content, and Section 3: \"Approved page changes publish immediately; git history is the audit trail.\" Every field here may be freely replaced by a later page.json PR -- contracts/append-only.rules.md's immutability rules apply only to entry.json and explicitly do not reach this file.",
