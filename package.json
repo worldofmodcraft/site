@@ -16,6 +16,8 @@
     "validate-fixtures": "node scripts/validate-fixtures.mjs",
     "make-fixture-screenshots": "node scripts/make-fixture-screenshots.mjs",
     "make-fixture-archives": "node scripts/make-fixture-archives.mjs",
+    "sync-schemas": "node scripts/sync-schemas.mjs",
+    "check-schemas": "node scripts/check-schemas.mjs",
     "test:archive-safety": "node scripts/self-test-archive-safety.mjs",
     "test": "npm run validate-fixtures && npm run test:archive-safety && npm run build"
   },
