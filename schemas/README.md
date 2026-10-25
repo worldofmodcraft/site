@@ -2,9 +2,11 @@
 
 `entry.schema.json`, `page.schema.json` and `manifest.schema.json` in this directory are byte-for-byte
 copies of `worldofmodcraft/registry`'s `contracts/{entry,page,manifest}.schema.json`, last
-re-synced on **2026-10-15** (task 041) at registry commit `ec56e9f`, which added the `..`-segment
-exclusion to `screenshots[]` (registry task 034). Equality is enforced by `check-schemas`, not by
-this sentence.
+re-synced on **2026-10-25** (task 065) from the registry branch `task/065-entry-schema-key-id` at
+commit `e9b121e` (registry task 065, before its merge: the schema bytes are what is enforced, not the
+commit id). That sync added the `key_id` pattern `^[0-9A-F]{16}$` (registry task 065) and also carried
+the version-object states of registry task 057, which the earlier copy (task 041, 2026-10-15, registry
+commit `ec56e9f`) predated. Equality is enforced by `check-schemas`, not by this sentence.
 
 ## Why a vendored copy, not a path into the sibling checkout
 

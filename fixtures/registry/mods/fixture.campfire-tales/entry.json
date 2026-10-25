@@ -13,7 +13,7 @@
       "source_archive": "https://archive.worldofmodcraft.com/fixture/campfire-tales/1.0.0.tar.gz",
       "source_sha256": "9f801df73145b02dea630855f09d08ccfb03fcbb44de1747503a55170f70228b",
       "signature": "untrusted comment: fixture signature, not a real minisign signature\nRWQAAAAA_fixture_placeholder_signature_bytes_base64==",
-      "key_id": "FIXTURE0000000A",
+      "key_id": "E7A1B2C3D4E5F607",
       "published_at": "2026-06-01T09:00:00Z",
       "status": "published"
     },
@@ -24,7 +24,7 @@
       "source_archive": "https://archive.worldofmodcraft.com/fixture/campfire-tales/1.1.0.tar.gz",
       "source_sha256": "1111111111111111111111111111111111111111111111111111111111111111",
       "signature": "untrusted comment: fixture signature, not a real minisign signature\nRWQAAAAA_fixture_placeholder_signature_bytes_base64==",
-      "key_id": "FIXTURE0000000A",
+      "key_id": "E7A1B2C3D4E5F607",
       "published_at": "2026-07-10T14:30:00Z",
       "status": "removed",
       "reason": "A contributed screenshot was a re-touched Blizzard asset, reported after publish; artefacts pulled per ADR-0041. The archived source tarball for this version is intentionally NOT shipped as a fixture -- a removed version's archive may legitimately be gone (see src/lib/archive.mjs), and this fixture demonstrates the site rendering that state correctly without needing the file."
@@ -36,7 +36,7 @@
       "source_archive": "https://archive.worldofmodcraft.com/fixture/campfire-tales/1.2.0.tar.gz",
       "source_sha256": "851ddd3ab1cd8df185056ace040cacbcf4b8f004db244f22c23f64ea729129a2",
       "signature": "untrusted comment: fixture signature, not a real minisign signature\nRWQAAAAA_fixture_placeholder_signature_bytes_base64==",
-      "key_id": "FIXTURE0000000A",
+      "key_id": "E7A1B2C3D4E5F607",
       "published_at": "2026-08-20T11:15:00Z",
       "status": "published"
     }
